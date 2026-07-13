@@ -1,0 +1,330 @@
+/* Reset and Design System Variables */
+:root {
+  --bg-base: #0A0A0F;
+  --surface: #14141F;
+  --surface-elevated: #1B1B29;
+  
+  --gradient-accent: linear-gradient(135deg, #6D5FFD 0%, #4A6CF7 50%, #1E1B4B 100%);
+  --gradient-primary: linear-gradient(135deg, #7C6FFF 0%, #5c4fff 100%);
+  --gradient-card: linear-gradient(135deg, rgba(109, 95, 253, 0.9) 0%, rgba(74, 108, 247, 0.9) 50%, rgba(30, 27, 75, 0.95) 100%);
+  
+  --primary: #7C6FFF;
+  --secondary: #4A90FF;
+  
+  --text-primary: #F5F5F7;
+  --text-secondary: #9797A8;
+  --text-muted: #5C5C6E;
+  
+  --success: #34D399;
+  --danger: #F87171;
+  --warning: #FBBF24;
+  
+  --border: rgba(255, 255, 255, 0.08);
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  
+  /* Safe area for iOS PWA */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: #050508;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: hidden;
+}
+
+/* Device Shell Simulator (For Desktop view) */
+.app-simulator-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.device-frame {
+  width: 412px;
+  height: 892px; /* Standard iPhone 15 Pro Ratio */
+  background: var(--bg-base);
+  border-radius: 48px;
+  border: 12px solid #2e2e3a;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 
+              0 0 0 4px #1a1a24;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Speaker / Notch Simulator */
+.device-notch {
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 30px;
+  background: #2e2e3a;
+  border-radius: 20px;
+  z-index: 100;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.device-notch::before {
+  content: '';
+  width: 50px;
+  height: 4px;
+  background: #111;
+  border-radius: 2px;
+  margin-right: 15px;
+}
+
+.device-notch::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #111;
+  border-radius: 50%;
+}
+
+/* Screen wrapper */
+.app-screen {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  background: var(--bg-base);
+  padding-top: 40px; /* Push down to clear notch */
+  padding-bottom: 20px; /* Clear home indicator */
+}
+
+/* Home indicator line */
+.home-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  z-index: 99;
+  pointer-events: none;
+}
+
+/* Responsive adjustment for actual mobile screens */
+@media (max-width: 480px) {
+  .app-simulator-container {
+    padding: 0;
+  }
+  
+  .device-frame {
+    width: 100%;
+    height: 100svh;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  
+  .device-notch {
+    display: none;
+  }
+  
+  .app-screen {
+    padding-top: calc(12px + var(--safe-area-top));
+    padding-bottom: calc(10px + var(--safe-area-bottom));
+  }
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+/* Global utility styles */
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: var(--font-sans);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+input, textarea {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* Layout Utilities */
+.app-header {
+  height: 56px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-logo-bg {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--gradient-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.app-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.app-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-header-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bell-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  position: relative;
+}
+
+.bell-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  background: var(--danger);
+  border-radius: 50%;
+}
+
+/* Tab Navigation */
+.app-nav {
+  height: 64px;
+  background: var(--bg-base);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 8px;
+  position: relative;
+  z-index: 50;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 16px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nav-item.active {
+  background: rgba(124, 111, 255, 0.15);
+  color: #a49cff;
+}
+
+.nav-item.active svg {
+  color: #a49cff;
+}
+
+.nav-item svg {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.2s ease;
+}
+
+.nav-item:active svg {
+  transform: scale(0.9);
+}

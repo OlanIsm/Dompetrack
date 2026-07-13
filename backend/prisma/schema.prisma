@@ -1,0 +1,65 @@
+// Dompetrack Database Schema
+// PostgreSQL + Prisma ORM — all queries are parameterized (SQL injection safe)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String        @map("password_hash")
+  refreshToken String?       @map("refresh_token")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  transactions Transaction[]
+  categories   Category[]
+
+  @@map("users")
+}
+
+model Category {
+  id        String  @id @default(uuid())
+  name      String
+  icon      String  @default("📦")
+  color     String  @default("#6D5FFD")
+  isDefault Boolean @default(false) @map("is_default")
+
+  userId String? @map("user_id")
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+
+  @@map("categories")
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  type        TransactionType
+  amount      BigInt
+  description String?
+  date        DateTime        @default(now())
+
+  categoryId String   @map("category_id")
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@map("transactions")
+}
