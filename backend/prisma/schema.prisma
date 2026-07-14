@@ -51,8 +51,8 @@ model Transaction {
   description String?
   date        DateTime        @default(now())
 
-  categoryId String   @map("category_id")
-  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId String?  @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id])
 
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

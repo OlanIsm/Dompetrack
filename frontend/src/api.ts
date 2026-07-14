@@ -16,7 +16,7 @@ export interface Transaction {
   amount: number;
   description?: string;
   date: string;
-  categoryId: string;
+  categoryId?: string;
   category?: Category;
 }
 
@@ -213,7 +213,7 @@ export const api = {
       amount: number;
       description?: string;
       date?: string;
-      categoryId: string;
+      categoryId?: string;
     }): Promise<Transaction> => {
       return apiRequest('/transactions', {
         method: 'POST',
@@ -223,6 +223,18 @@ export const api = {
     delete: async (id: string): Promise<any> => {
       return apiRequest(`/transactions/${id}`, {
         method: 'DELETE',
+      });
+    },
+    update: async (id: string, payload: {
+      type?: 'INCOME' | 'EXPENSE';
+      amount?: number;
+      description?: string;
+      date?: string;
+      categoryId?: string;
+    }): Promise<Transaction> => {
+      return apiRequest(`/transactions/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
       });
     },
     getSummary: async (month?: number, year?: number): Promise<{

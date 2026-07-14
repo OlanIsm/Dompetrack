@@ -9,8 +9,20 @@ import { UsersModule } from './users/users.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { CategoriesModule } from './categories/categories.module';
 import { JwtAuthGuard } from './common/guards';
+import { Public } from './common/decorators';
+import { Controller, Get } from '@nestjs/common';
+
+@Controller()
+export class AppController {
+  @Public()
+  @Get()
+  getHealth() {
+    return { status: 'ok', message: 'Dompetrack API is running successfully' };
+  }
+}
 
 @Module({
+  controllers: [AppController],
   imports: [
     // Load .env file
     ConfigModule.forRoot({ isGlobal: true }),

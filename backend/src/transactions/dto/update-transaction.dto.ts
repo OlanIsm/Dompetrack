@@ -1,28 +1,24 @@
 import {
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsDateString,
-  IsUUID,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { TransactionTypeDto } from './create-transaction.dto';
 
-export enum TransactionTypeDto {
-  INCOME = 'INCOME',
-  EXPENSE = 'EXPENSE',
-}
-
-export class CreateTransactionDto {
+export class UpdateTransactionDto {
+  @IsOptional()
   @IsEnum(TransactionTypeDto, { message: 'Tipe harus INCOME atau EXPENSE' })
-  type: TransactionTypeDto;
+  type?: TransactionTypeDto;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt({ message: 'Jumlah harus berupa angka bulat' })
   @Min(1, { message: 'Jumlah minimal 1' })
-  amount: number;
+  amount?: number;
 
   @IsOptional()
   @IsString()

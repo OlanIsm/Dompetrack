@@ -2,9 +2,10 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateTransactionDto, QueryTransactionDto } from './dto';
+import { CreateTransactionDto, QueryTransactionDto, UpdateTransactionDto } from './dto';
 
 @Injectable()
 export class TransactionsService {
@@ -15,13 +16,19 @@ export class TransactionsService {
    * Amount is stored as BigInt (in smallest currency unit, e.g., Rupiah).
    */
   async create(userId: string, dto: CreateTransactionDto) {
-    // Verify category belongs to user
-    const category = await this.prisma.category.findFirst({
-      where: { id: dto.categoryId, userId },
-    });
+    if (dto.type === 'EXPENSE' && !dto.categoryId) {
+      throw new BadRequestException('Kategori wajib dipilih untuk pengeluaran');
+    }
 
-    if (!category) {
-      throw new NotFoundException('Kategori tidak ditemukan');
+    if (dto.categoryId) {
+      // Verify category belongs to user
+      const category = await this.prisma.category.findFirst({
+        where: { id: dto.categoryId, userId },
+      });
+
+      if (!category) {
+        throw new NotFoundException('Kategori tidak ditemukan');
+      }
     }
 
     const transaction = await this.prisma.transaction.create({
@@ -30,7 +37,7 @@ export class TransactionsService {
         amount: BigInt(dto.amount),
         description: dto.description || null,
         date: dto.date ? new Date(dto.date) : new Date(),
-        categoryId: dto.categoryId,
+        categoryId: dto.categoryId || null,
         userId,
       },
       include: { category: true },
@@ -123,6 +130,52 @@ export class TransactionsService {
     });
 
     return { message: 'Transaksi berhasil dihapus' };
+  }
+
+  /**
+   * Update a transaction (only if it belongs to the user).
+   */
+  async update(userId: string, transactionId: string, dto: UpdateTransactionDto) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { id: transactionId },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Transaksi tidak ditemukan');
+    }
+
+    if (transaction.userId !== userId) {
+      throw new ForbiddenException('Tidak berhak mengubah transaksi ini');
+    }
+
+    if (dto.type === 'EXPENSE' && !dto.categoryId && !transaction.categoryId) {
+      throw new BadRequestException('Kategori wajib dipilih untuk pengeluaran');
+    }
+
+    if (dto.categoryId) {
+      // Verify category belongs to user
+      const category = await this.prisma.category.findFirst({
+        where: { id: dto.categoryId, userId },
+      });
+
+      if (!category) {
+        throw new NotFoundException('Kategori tidak ditemukan');
+      }
+    }
+
+    const updated = await this.prisma.transaction.update({
+      where: { id: transactionId },
+      data: {
+        type: dto.type,
+        amount: dto.amount !== undefined ? BigInt(dto.amount) : undefined,
+        description: dto.description !== undefined ? dto.description : undefined,
+        date: dto.date ? new Date(dto.date) : undefined,
+        categoryId: dto.type === 'INCOME' ? null : (dto.categoryId !== undefined ? dto.categoryId : undefined),
+      },
+      include: { category: true },
+    });
+
+    return this.serializeTransaction(updated);
   }
 
   /**

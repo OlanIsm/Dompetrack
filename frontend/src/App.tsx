@@ -20,12 +20,14 @@ import {
   Car, 
   Briefcase, 
   TrendingUp,
+  TrendingDown,
   Mail,
   Lock,
   User,
   Eye,
   EyeOff,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import './App.css';
 import { api } from './api';
@@ -45,6 +47,7 @@ interface Transaction {
     icon: string;
     color: string;
   };
+  rawDate?: string;
 }
 
 // Indonesian month names helper
@@ -62,11 +65,20 @@ const INDO_DAYS = [
 function App() {
   // ---------------- STATE ----------------
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [prevMonthTransactions, setPrevMonthTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [filterType, setFilterType] = useState<'month' | 'all'>('month');
   const [aiInsight, setAiInsight] = useState<string>('');
   const [aiLoading, setAiLoading] = useState<boolean>(false);
+
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editAmountStr, setEditAmountStr] = useState<string>('0');
+  const [editType, setEditType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
+  const [editCategory, setEditCategory] = useState<string>('');
+  const [editNote, setEditNote] = useState<string>('');
+  const [editDate, setEditDate] = useState<string>('');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const [currentTab, setCurrentTab] = useState<'home' | 'add' | 'laporan' | 'settings'>('home');
   
@@ -102,6 +114,7 @@ function App() {
       date: dateStr,
       time: timeStr,
       categoryObj: tx.category,
+      rawDate: tx.date,
     };
   };
 
@@ -129,6 +142,17 @@ function App() {
       
       const formatted = txsData.map(formatTxForFrontend);
       setTransactions(formatted);
+
+      // 3. Fetch previous month's transactions
+      let prevMonth = selectedMonth - 1;
+      let prevYear = selectedYear;
+      if (prevMonth < 0) {
+        prevMonth = 11;
+        prevYear -= 1;
+      }
+      const prevTxsData = await api.transactions.getAll(prevMonth, prevYear);
+      const formattedPrev = prevTxsData.map(formatTxForFrontend);
+      setPrevMonthTransactions(formattedPrev);
     } catch (err) {
       console.error("Gagal mengambil data dari API:", err);
     } finally {
@@ -376,9 +400,87 @@ function App() {
     };
   }, [transactions, periodTransactions, selectedMonth, selectedYear, filterType]);
 
+  const categoryMom = useMemo(() => {
+    const currentSums = stats.categorySums;
+    
+    // Calculate previous month's sums
+    let prevFoodSum = 0;
+    let prevEssentialsSum = 0;
+    let prevHobbySum = 0;
+    let prevOtherSum = 0;
+
+    prevMonthTransactions.forEach(tx => {
+      if (tx.type === 'EXPENSE') {
+        const catName = tx.category.toLowerCase();
+        if (catName.includes('makan') || catName.includes('food')) prevFoodSum += tx.amount;
+        else if (catName.includes('primer') || catName.includes('essential') || catName.includes('belanja')) prevEssentialsSum += tx.amount;
+        else if (catName.includes('hobi') || catName.includes('hobby') || catName.includes('game')) prevHobbySum += tx.amount;
+        else prevOtherSum += tx.amount;
+      }
+    });
+
+    const prevSums = {
+      Food: prevFoodSum,
+      Essentials: prevEssentialsSum,
+      Hobby: prevHobbySum,
+      Other: prevOtherSum
+    };
+
+    const prevTotal = prevFoodSum + prevEssentialsSum + prevHobbySum + prevOtherSum;
+    const currentTotal = stats.expense;
+
+    const getPercentageChange = (curr: number, prev: number) => {
+      if (prev === 0) return curr > 0 ? '+100%' : '0%';
+      const diff = ((curr - prev) / prev) * 100;
+      const sign = diff >= 0 ? '+' : '';
+      return `${sign}${diff.toFixed(1)}%`;
+    };
+
+    return {
+      Food: getPercentageChange(currentSums.Food, prevSums.Food),
+      Essentials: getPercentageChange(currentSums.Essentials, prevSums.Essentials),
+      Hobby: getPercentageChange(currentSums.Hobby, prevSums.Hobby),
+      Other: getPercentageChange(currentSums.Other, prevSums.Other),
+      Total: getPercentageChange(currentTotal, prevTotal),
+      isTotalUp: currentTotal >= prevTotal
+    };
+  }, [stats, prevMonthTransactions]);
+
+  const trendData = useMemo(() => {
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    const dailySpending = Array(daysInMonth).fill(0);
+    periodTransactions.forEach(tx => {
+      if (tx.type === 'EXPENSE') {
+        const d = new Date(tx.date).getDate();
+        if (d >= 1 && d <= daysInMonth) {
+          dailySpending[d - 1] += tx.amount;
+        }
+      }
+    });
+
+    const maxDaily = Math.max(...dailySpending, 10000);
+    const points = dailySpending.map((amount, idx) => {
+      const x = 10 + (idx / (daysInMonth - 1)) * 352;
+      const y = 110 - (amount / maxDaily) * 90;
+      return { x, y };
+    });
+
+    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const fillPath = points.length > 0 ? `${linePath} L ${points[points.length - 1].x.toFixed(1)} 120 L ${points[0].x.toFixed(1)} 120 Z` : '';
+    const maxDayIdx = maxDaily > 0 ? dailySpending.indexOf(Math.max(...dailySpending)) : 0;
+    const maxPoint = points[maxDayIdx];
+
+    return {
+      linePath,
+      fillPath,
+      maxPoint,
+      hasSpending: Math.max(...dailySpending) > 0
+    };
+  }, [periodTransactions, selectedMonth, selectedYear]);
+
   // Grouped transactions by day (For Report tab)
   const groupedTransactionsByDay = useMemo(() => {
-    const groups: { [date: string]: { txs: Transaction[]; total: number } } = {};
+    const groups: { [date: string]: { txs: Transaction[]; totalExpense: number; totalIncome: number } } = {};
     
     // Sort transactions newest to oldest
     const sorted = [...periodTransactions].sort((a, b) => {
@@ -386,12 +488,14 @@ function App() {
     });
 
     sorted.forEach(tx => {
+      if (!groups[tx.date]) {
+        groups[tx.date] = { txs: [], totalExpense: 0, totalIncome: 0 };
+      }
+      groups[tx.date].txs.push(tx);
       if (tx.type === 'EXPENSE') {
-        if (!groups[tx.date]) {
-          groups[tx.date] = { txs: [], total: 0 };
-        }
-        groups[tx.date].txs.push(tx);
-        groups[tx.date].total += tx.amount;
+        groups[tx.date].totalExpense += tx.amount;
+      } else {
+        groups[tx.date].totalIncome += tx.amount;
       }
     });
 
@@ -467,22 +571,20 @@ function App() {
 
     setIsLoading(true);
     try {
-      let selectedCatId = txCategory;
-      if (txType === 'INCOME') {
-        const incomeCat = categories.find(c => c.name.toLowerCase().includes('lainnya')) || categories[0];
-        selectedCatId = incomeCat?.id;
+      if (txType === 'EXPENSE' && !txCategory) {
+        throw new Error('Kategori wajib dipilih untuk pengeluaran');
       }
 
-      if (!selectedCatId) {
-        throw new Error('Kategori tidak valid');
-      }
+      const today = new Date();
+      const [year, month, day] = txDate.split('-').map(Number);
+      const combinedDate = new Date(year, month - 1, day, today.getHours(), today.getMinutes(), today.getSeconds());
 
       await api.transactions.create({
         type: txType,
         amount: amountVal,
         description: txNote.trim() || (txType === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'),
-        categoryId: selectedCatId,
-        date: txDate,
+        categoryId: txType === 'EXPENSE' ? txCategory : undefined,
+        date: combinedDate.toISOString(),
       });
 
       await fetchData();
@@ -497,7 +599,7 @@ function App() {
         setShowSuccessToast(false);
         // Auto redirect to home
         setCurrentTab('home');
-      }, 1200);
+      }, 1800);
     } catch (err: any) {
       alert('Gagal menyimpan transaksi: ' + err.message);
     } finally {
@@ -514,6 +616,59 @@ function App() {
       await fetchData();
     } catch (err: any) {
       alert('Gagal menghapus transaksi: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startEditing = (tx: Transaction) => {
+    setEditingTransaction(tx);
+    setEditAmountStr(tx.amount.toString());
+    setEditType(tx.type);
+    setEditCategory(tx.categoryObj?.id || '');
+    setEditNote(tx.note);
+    setEditDate(tx.date);
+  };
+
+  const handleUpdateTransaction = async () => {
+    if (!editingTransaction) return;
+    const amountVal = parseInt(editAmountStr, 10);
+    if (isNaN(amountVal) || amountVal <= 0) return;
+
+    setIsLoading(true);
+    try {
+      if (editType === 'EXPENSE' && !editCategory) {
+        throw new Error('Kategori wajib dipilih untuk pengeluaran');
+      }
+
+      const today = new Date();
+      const [year, month, day] = editDate.split('-').map(Number);
+      const originalDateObj = editingTransaction.rawDate ? new Date(editingTransaction.rawDate) : null;
+      
+      let combinedDate: Date;
+      if (originalDateObj && 
+          originalDateObj.getFullYear() === year && 
+          originalDateObj.getMonth() === month - 1 && 
+          originalDateObj.getDate() === day) {
+        // Date did not change, preserve original time
+        combinedDate = originalDateObj;
+      } else {
+        // Date changed, combine new date with current time
+        combinedDate = new Date(year, month - 1, day, today.getHours(), today.getMinutes(), today.getSeconds());
+      }
+
+      await api.transactions.update(editingTransaction.id, {
+        type: editType,
+        amount: amountVal,
+        description: editNote.trim() || (editType === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'),
+        categoryId: editType === 'EXPENSE' ? editCategory : undefined,
+        date: combinedDate.toISOString(),
+      });
+
+      await fetchData();
+      setEditingTransaction(null);
+    } catch (err: any) {
+      alert('Gagal memperbarui transaksi: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -778,28 +933,15 @@ function App() {
             )}
           </header>
 
-          {/* Toast Notification for Success Action */}
+          {/* Success Overlay Popup */}
           {showSuccessToast && (
-            <div className="toast-success" style={{
-              position: 'absolute',
-              top: '80px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: '#34D399',
-              color: '#0A0A0F',
-              padding: '10px 20px',
-              borderRadius: '99px',
-              fontWeight: 700,
-              fontSize: '13px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              zIndex: 999,
-              boxShadow: '0 4px 15px rgba(52, 211, 153, 0.4)',
-              animation: 'fadeIn 0.2s ease-out'
-            }}>
-              <Check size={16} strokeWidth={3} />
-              Transaksi Disimpan!
+            <div className="success-overlay">
+              <div className="success-popup">
+                <div className="success-circle">
+                  <Check size={40} strokeWidth={3} className="success-check-icon" />
+                </div>
+                <p className="success-text">Transaksi Disimpan!</p>
+              </div>
             </div>
           )}
 
@@ -1031,14 +1173,32 @@ function App() {
                     </div>
 
                     {/* AI Insight Card */}
-                    <div className="ai-insight-card">
+                    <div className="ai-insight-card" style={{ position: 'relative' }}>
                       <div className="ai-icon-container">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
                         </svg>
                       </div>
-                      <div className="ai-content">
-                        <span className="ai-tag">AI INSIGHT</span>
+                      <div className="ai-content" style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                          <span className="ai-tag">AI INSIGHT</span>
+                          <button 
+                            onClick={fetchAiInsight} 
+                            disabled={aiLoading}
+                            style={{ 
+                              background: 'none', 
+                              border: 'none', 
+                              color: 'var(--primary)', 
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              padding: '2px'
+                            }}
+                            title="Refresh Insight"
+                          >
+                            <RefreshCw size={14} className={aiLoading ? 'animate-spin' : ''} />
+                          </button>
+                        </div>
                         <p className="ai-text">
                           {aiLoading ? (
                             <span style={{ opacity: 0.6 }}>Menganalisis data keuangan Anda...</span>
@@ -1293,13 +1453,15 @@ function App() {
                   <div className="trend-info-row">
                     <div className="trend-amount-section">
                       <span className="trend-title">Daily Spending Trend</span>
-                      <span className="trend-amount">{formatRupiah(stats.expense || 4250000)}</span>
+                      <span className="trend-amount">{formatRupiah(stats.expense)}</span>
                     </div>
                     {/* Trend Badge */}
-                    <div className="badge danger">
-                      <TrendingUp size={12} />
-                      <span>+12%</span>
-                    </div>
+                    {trendData.hasSpending && (
+                      <div className={`badge ${categoryMom.isTotalUp ? 'danger' : 'success'}`}>
+                        {categoryMom.isTotalUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                        <span>{categoryMom.Total}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* SVG Wavy Line Chart */}
@@ -1312,24 +1474,59 @@ function App() {
                         </linearGradient>
                       </defs>
                       
-                      {/* Gradient background fill */}
-                      <path 
-                        d="M 10 100 C 60 100, 80 25, 130 55 C 180 85, 220 15, 270 35 C 310 55, 330 100, 362 45 L 362 120 L 10 120 Z" 
-                        fill="url(#chartLineGrad)"
-                      />
-                      
-                      {/* Wavy stroke line */}
-                      <path 
-                        d="M 10 100 C 60 100, 80 25, 130 55 C 180 85, 220 15, 270 35 C 310 55, 330 100, 362 45" 
-                        stroke="#7C6FFF" 
-                        strokeWidth="3.5" 
-                        fill="none" 
-                        strokeLinecap="round"
-                      />
+                      {trendData.hasSpending ? (
+                        <>
+                          {/* Gradient background fill */}
+                          <path 
+                            d={trendData.fillPath} 
+                            fill="url(#chartLineGrad)"
+                          />
+                          
+                          {/* Wavy stroke line */}
+                          <path 
+                            d={trendData.linePath} 
+                            stroke="#7C6FFF" 
+                            strokeWidth="3.5" 
+                            fill="none" 
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
 
-                      {/* Sparkles / Dot points on Peaks */}
-                      <circle cx="100" cy="53" r="4" fill="#a49cff" />
-                      <circle cx="240" cy="22" r="5" fill="#7C6FFF" stroke="#FFFFFF" strokeWidth="1.5" />
+                          {/* Max day highlight point */}
+                          {trendData.maxPoint && (
+                            <circle 
+                              cx={trendData.maxPoint.x} 
+                              cy={trendData.maxPoint.y} 
+                              r="5" 
+                              fill="#7C6FFF" 
+                              stroke="#FFFFFF" 
+                              strokeWidth="1.5" 
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {/* Flat line when no spending */}
+                          <line 
+                            x1="10" 
+                            y1="110" 
+                            x2="362" 
+                            y2="110" 
+                            stroke="rgba(255,255,255,0.1)" 
+                            strokeWidth="2" 
+                            strokeDasharray="4 4" 
+                          />
+                          <text 
+                            x="186" 
+                            y="65" 
+                            fill="var(--text-muted)" 
+                            fontSize="12" 
+                            textAnchor="middle"
+                          >
+                            Tidak ada data pengeluaran
+                          </text>
+                        </>
+                      )}
                     </svg>
                   </div>
                 </div>
@@ -1338,60 +1535,84 @@ function App() {
                 <div className="top-cats-section">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="section-title">Top Categories</span>
-                    <button className="see-all-btn">SEE ALL</button>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {/* Item 1: Makanan & Minuman */}
-                    <div className="top-cat-item">
-                      <div className="top-cat-left">
-                        <div className="top-cat-icon-box" style={{ color: '#7C6FFF' }}>
-                          <Utensils size={18} />
-                        </div>
-                        <div className="top-cat-text">
-                          <span className="top-cat-name">Makanan & Minuman</span>
-                          <span className="top-cat-count">{stats.counts.Food} Transactions</span>
-                        </div>
-                      </div>
-                      <div className="top-cat-right">
-                        <span className="top-cat-value">{formatRupiah(stats.isDemo ? 1250000 : stats.categorySums.Food)}</span>
-                        <span className="top-cat-badge green">-5.2% vs prev</span>
-                      </div>
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {categories.map((cat) => {
+                      const isFood = cat.name.toLowerCase().includes('makan') || cat.name.toLowerCase().includes('food');
+                      const isEssentials = cat.name.toLowerCase().includes('primer') || cat.name.toLowerCase().includes('essential') || cat.name.toLowerCase().includes('belanja');
+                      const isHobby = cat.name.toLowerCase().includes('hobi') || cat.name.toLowerCase().includes('hobby') || cat.name.toLowerCase().includes('game');
+                      
+                      const key = isFood ? 'Food' : isEssentials ? 'Essentials' : isHobby ? 'Hobby' : 'Other';
+                      const count = stats.counts[key] || 0;
+                      const sum = stats.categorySums[key] || 0;
+                      const momStr = categoryMom[key] || '0%';
+                      const isMomUp = momStr.startsWith('+');
+                      const isExpanded = expandedCategory === cat.id;
 
-                    {/* Item 2: Belanja */}
-                    <div className="top-cat-item">
-                      <div className="top-cat-left">
-                        <div className="top-cat-icon-box" style={{ color: '#FBBF24' }}>
-                          <ShoppingBag size={18} />
-                        </div>
-                        <div className="top-cat-text">
-                          <span className="top-cat-name">Belanja</span>
-                          <span className="top-cat-count">{stats.counts.Essentials} Transactions</span>
-                        </div>
-                      </div>
-                      <div className="top-cat-right">
-                        <span className="top-cat-value">{formatRupiah(stats.isDemo ? 980000 : stats.categorySums.Essentials)}</span>
-                        <span className="top-cat-badge red">+18.4% vs prev</span>
-                      </div>
-                    </div>
+                      // Filter transactions of this category
+                      const catTransactions = periodTransactions.filter(tx => 
+                        tx.type === 'EXPENSE' && (tx.categoryObj?.id === cat.id || (!tx.categoryObj && cat.name === 'Lainnya'))
+                      );
 
-                    {/* Item 3: Transportasi */}
-                    <div className="top-cat-item">
-                      <div className="top-cat-left">
-                        <div className="top-cat-icon-box" style={{ color: '#a49cff' }}>
-                          <Car size={18} />
+                      return (
+                        <div key={cat.id} className="expandable-category-card">
+                          <div 
+                            className="top-cat-item" 
+                            style={{ cursor: 'pointer', borderBottom: 'none' }}
+                            onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+                          >
+                            <div className="top-cat-left">
+                              <div className="top-cat-icon-box" style={{ color: cat.color }}>
+                                {getIcon(cat.name, '')}
+                              </div>
+                              <div className="top-cat-text">
+                                <span className="top-cat-name">{cat.name}</span>
+                                <span className="top-cat-count">{count} Transactions</span>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div className="top-cat-right">
+                                <span className="top-cat-value">{formatRupiah(sum)}</span>
+                                <span className={`top-cat-badge ${isMomUp ? 'red' : 'green'}`}>{momStr} vs prev</span>
+                              </div>
+                              <ChevronRight 
+                                size={16} 
+                                style={{ 
+                                  transform: isExpanded ? 'rotate(90deg)' : 'none', 
+                                  transition: 'transform 0.2s',
+                                  color: 'var(--text-secondary)'
+                                }} 
+                              />
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="category-expanded-list slide-down">
+                              {catTransactions.map(tx => (
+                                <div 
+                                  key={tx.id} 
+                                  className="category-expanded-item"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditing(tx);
+                                  }}
+                                >
+                                  <div className="expanded-item-left">
+                                    <span className="expanded-item-note">{tx.note}</span>
+                                    <span className="expanded-item-date">{tx.date} • {tx.time}</span>
+                                  </div>
+                                  <span className="expanded-item-amount">-{formatRupiah(tx.amount)}</span>
+                                </div>
+                              ))}
+                              {catTransactions.length === 0 && (
+                                <div className="expanded-item-empty">Tidak ada transaksi di kategori ini.</div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                        <div className="top-cat-text">
-                          <span className="top-cat-name">Transportasi</span>
-                          <span className="top-cat-count">{stats.counts.Other} Transactions</span>
-                        </div>
-                      </div>
-                      <div className="top-cat-right">
-                        <span className="top-cat-value">{formatRupiah(stats.isDemo ? 450000 : stats.categorySums.Other)}</span>
-                        <span className="top-cat-badge green">-1.2% vs prev</span>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -1405,12 +1626,29 @@ function App() {
                       <div className="history-group" key={dateKey}>
                         <div className="history-group-header">
                           <span className="history-date">{formatGroupHeaderDate(dateKey)}</span>
-                          <span className="history-total">TOTAL: -{formatRupiah(group.total)}</span>
+                          <span className="history-total">
+                            {group.totalIncome > 0 && group.totalExpense > 0 ? (
+                              <>
+                                <span className="income" style={{ color: 'var(--success)' }}>+{formatRupiah(group.totalIncome)}</span>
+                                <span style={{ margin: '0 4px', opacity: 0.5 }}>/</span>
+                                <span className="expense" style={{ color: 'var(--danger)' }}>-{formatRupiah(group.totalExpense)}</span>
+                              </>
+                            ) : group.totalIncome > 0 ? (
+                              <span className="income" style={{ color: 'var(--success)' }}>+{formatRupiah(group.totalIncome)}</span>
+                            ) : (
+                              <span className="expense" style={{ color: 'var(--danger)' }}>-{formatRupiah(group.totalExpense)}</span>
+                            )}
+                          </span>
                         </div>
 
                         <div className="transactions-list">
                           {group.txs.map(tx => (
-                            <div className="transaction-item" key={tx.id}>
+                            <div 
+                              className="transaction-item" 
+                              key={tx.id}
+                              onClick={() => startEditing(tx)}
+                              style={{ cursor: 'pointer' }}
+                            >
                               <div className="tx-left">
                                 <div className="tx-icon-wrapper">
                                   {getIcon(tx.category, tx.note)}
@@ -1418,12 +1656,12 @@ function App() {
                                 <div className="tx-details">
                                   <span className="tx-name">{tx.note}</span>
                                   <span className="tx-time">
-                                    {tx.time} • {tx.category === 'Food' ? 'Food & Drink' : tx.category === 'Essentials' ? 'Shopping' : tx.category === 'Hobby' ? 'Hobbies' : 'Transport'}
+                                    {tx.time} • {tx.category}
                                   </span>
                                 </div>
                               </div>
-                              <span className="tx-amount expense">
-                                -{formatRupiah(tx.amount)}
+                              <span className={`tx-amount ${tx.type === 'EXPENSE' ? 'expense' : 'income'}`}>
+                                {tx.type === 'EXPENSE' ? '-' : '+'}{formatRupiah(tx.amount)}
                               </span>
                             </div>
                           ))}
@@ -1434,10 +1672,11 @@ function App() {
                   
                   {Object.keys(groupedTransactionsByDay).length === 0 && (
                     <div style={{ padding: '24px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
-                      Tidak ada riwayat pengeluaran di bulan ini.
+                      Tidak ada riwayat transaksi di bulan ini.
                     </div>
                   )}
                 </div>
+
 
               </div>
             )}
@@ -1620,8 +1859,119 @@ function App() {
             </div>
           )}
 
+          {/* Edit Transaction Modal / Bottom Sheet */}
+          {editingTransaction && (
+            <div className="edit-modal-overlay" onClick={() => setEditingTransaction(null)}>
+              <div className="edit-modal-container slide-up" onClick={(e) => e.stopPropagation()}>
+                <div className="edit-modal-header">
+                  <div className="drag-handle"></div>
+                  <div className="header-title-row">
+                    <span className="modal-title">Edit Transaksi</span>
+                    <button 
+                      className="delete-btn-icon" 
+                      onClick={() => {
+                        handleDeleteTransaction(editingTransaction.id);
+                        setEditingTransaction(null);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '8px',
+                        borderRadius: '50%',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="edit-modal-body">
+                  {/* Amount Display */}
+                  <div className="edit-amount-display">
+                    <span className="currency-symbol">Rp</span>
+                    <input 
+                      type="number" 
+                      className="edit-amount-input" 
+                      value={editAmountStr} 
+                      onChange={(e) => setEditAmountStr(e.target.value)} 
+                    />
+                  </div>
+
+                  {/* Transaction Type Select */}
+                  <div className="edit-type-selector">
+                    <button 
+                      className={`type-btn income ${editType === 'INCOME' ? 'active' : ''}`}
+                      onClick={() => setEditType('INCOME')}
+                    >
+                      Pemasukan
+                    </button>
+                    <button 
+                      className={`type-btn expense ${editType === 'EXPENSE' ? 'active' : ''}`}
+                      onClick={() => setEditType('EXPENSE')}
+                    >
+                      Pengeluaran
+                    </button>
+                  </div>
+
+                  {/* Note Input */}
+                  <div className="edit-input-group">
+                    <span className="input-label">Catatan</span>
+                    <input 
+                      type="text" 
+                      className="edit-text-input" 
+                      value={editNote} 
+                      onChange={(e) => setEditNote(e.target.value)} 
+                      placeholder="Masukkan catatan..."
+                    />
+                  </div>
+
+                  {/* Date Input */}
+                  <div className="edit-input-group">
+                    <span className="input-label">Tanggal</span>
+                    <input 
+                      type="date" 
+                      className="edit-text-input" 
+                      value={editDate} 
+                      onChange={(e) => setEditDate(e.target.value)} 
+                    />
+                  </div>
+
+                  {/* Category Select (Only if EXPENSE) */}
+                  {editType === 'EXPENSE' && (
+                    <div className="edit-input-group">
+                      <span className="input-label">Kategori</span>
+                      <select 
+                        className="edit-select-input" 
+                        value={editCategory} 
+                        onChange={(e) => setEditCategory(e.target.value)}
+                      >
+                        <option value="">-- Pilih Kategori --</option>
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="modal-actions-row">
+                    <button className="cancel-btn" onClick={() => setEditingTransaction(null)}>Batal</button>
+                    <button className="save-btn" onClick={handleUpdateTransaction}>Simpan</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* iOS Home Indicator Bar simulator */}
           <div className="home-indicator"></div>
+
 
         </div>
       </div>
