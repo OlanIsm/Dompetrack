@@ -121,7 +121,7 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
           const newAccessToken = await handleTokenRefresh();
           isRefreshing = false;
           onRefreshed(newAccessToken);
-          
+
           // Retry the request directly using the new access token
           const retryHeaders = new Headers(options.headers || {});
           if (!retryHeaders.has('Content-Type') && !(options.body instanceof FormData)) {
