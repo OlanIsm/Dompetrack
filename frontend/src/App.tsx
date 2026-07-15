@@ -240,6 +240,7 @@ function App() {
     if (currentUser) {
       fetchAiInsight();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, currentUser, selectedMonth, selectedYear, filterType]);
 
   // Home notification panel state
@@ -268,6 +269,7 @@ function App() {
     if (currentUser) {
       fetchData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, selectedMonth, selectedYear, filterType]);
 
   // Effect to listen to logout event from API
@@ -979,7 +981,7 @@ function App() {
             
             {/* 1. HOME SCREEN */}
             {currentTab === 'home' && (
-              <>
+              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
                 {/* Greeting Section & Period Toggle */}
                 <div className="greeting-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <div>
@@ -1259,12 +1261,12 @@ function App() {
                     </div>
                   </>
                 )}
-              </>
+              </div>
             )}
 
             {/* 2. ADD TRANSACTION SCREEN */}
             {currentTab === 'add' && (
-              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
+              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', width: '100%' }}>
                 
                 {/* Segmented Toggle: Pengeluaran / Pemasukan */}
                 <div className="toggle-container">
@@ -1430,7 +1432,7 @@ function App() {
 
             {/* 3. REPORTS (LAPORAN) SCREEN */}
             {currentTab === 'laporan' && (
-              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
                 
                 {/* Month Navigator bar */}
                 <div className="reports-header-nav">
@@ -1683,7 +1685,7 @@ function App() {
 
             {/* 4. SETTINGS SCREEN */}
             {currentTab === 'settings' && (
-              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
                 
                 {/* Profile Card */}
                 <div className="profile-card">
@@ -1768,10 +1770,7 @@ function App() {
                     
                     {/* Logout button */}
                     <div className="settings-item logout-item" onClick={() => {
-                      setCurrentUser(null);
-                      localStorage.removeItem('dompetrack_user');
-                      setCurrentTab('home');
-                      setAuthScreen('login');
+                      api.auth.logout();
                     }}>
                       <div className="settings-item-left">
                         <LogOut className="logout-icon" size={18} />

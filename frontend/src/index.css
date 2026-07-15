@@ -45,6 +45,13 @@ body {
   overflow-x: hidden;
 }
 
+#root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 /* Device Shell Simulator (For Desktop view) */
 .app-simulator-container {
   display: flex;
@@ -212,6 +219,7 @@ input, textarea {
 }
 
 .fade-in {
+  width: 100%;
   animation: fadeIn 0.25s ease-out forwards;
 }
 

@@ -1,5 +1,5 @@
 // API Service for Dompetrack Backend Integration
-const BASE_URL = 'http://localhost:3000/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export interface Category {
   id: string;
@@ -42,14 +42,22 @@ export const clearTokens = () => {
 };
 
 let isRefreshing = false;
-let refreshSubscribers: ((token: string) => void)[] = [];
+let refreshSubscribers: { resolve: (token: string) => void; reject: (err: Error) => void }[] = [];
 
-const subscribeTokenRefresh = (cb: (token: string) => void) => {
-  refreshSubscribers.push(cb);
+const subscribeTokenRefresh = (
+  resolve: (token: string) => void,
+  reject: (err: Error) => void
+) => {
+  refreshSubscribers.push({ resolve, reject });
 };
 
 const onRefreshed = (token: string) => {
-  refreshSubscribers.map((cb) => cb(token));
+  refreshSubscribers.forEach((sub) => sub.resolve(token));
+  refreshSubscribers = [];
+};
+
+const onRefreshFailed = (error: Error) => {
+  refreshSubscribers.forEach((sub) => sub.reject(error));
   refreshSubscribers = [];
 };
 
@@ -113,30 +121,50 @@ export async function apiRequest(path: string, options: RequestInit = {}): Promi
           const newAccessToken = await handleTokenRefresh();
           isRefreshing = false;
           onRefreshed(newAccessToken);
+          
+          // Retry the request directly using the new access token
+          const retryHeaders = new Headers(options.headers || {});
+          if (!retryHeaders.has('Content-Type') && !(options.body instanceof FormData)) {
+            retryHeaders.set('Content-Type', 'application/json');
+          }
+          retryHeaders.set('Authorization', `Bearer ${newAccessToken}`);
+          const retryResponse = await fetch(url, { ...options, headers: retryHeaders });
+          const json = await retryResponse.json();
+          if (!retryResponse.ok) {
+            throw new Error(json.message || 'API request failed');
+          }
+          return json.data ?? json;
         } catch (error) {
           isRefreshing = false;
-          refreshSubscribers = [];
+          onRefreshFailed(error instanceof Error ? error : new Error(String(error)));
           throw error;
         }
       }
 
       // Wait for refresh to complete
       return new Promise((resolve, reject) => {
-        subscribeTokenRefresh((newToken) => {
-          const retryHeaders = new Headers(options.headers || {});
-          retryHeaders.set('Content-Type', 'application/json');
-          retryHeaders.set('Authorization', `Bearer ${newToken}`);
-          resolve(
+        subscribeTokenRefresh(
+          (newToken) => {
+            const retryHeaders = new Headers(options.headers || {});
+            if (!retryHeaders.has('Content-Type') && !(options.body instanceof FormData)) {
+              retryHeaders.set('Content-Type', 'application/json');
+            }
+            retryHeaders.set('Authorization', `Bearer ${newToken}`);
             fetch(url, { ...options, headers: retryHeaders })
-              .then((res) => {
+              .then(async (res) => {
+                const json = await res.json();
                 if (!res.ok) {
-                  return res.json().then((err) => reject(err));
+                  reject(new Error(json.message || 'API request failed'));
+                } else {
+                  resolve(json.data ?? json);
                 }
-                return res.json();
               })
-              .then((json) => json.data ?? json)
-          );
-        });
+              .catch((err) => reject(err));
+          },
+          (err) => {
+            reject(err);
+          }
+        );
       });
     }
 

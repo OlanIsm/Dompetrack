@@ -1,11 +1,9 @@
 import {
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsDateString,
-  IsUUID,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';

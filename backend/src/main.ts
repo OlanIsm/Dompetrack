@@ -11,6 +11,43 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
+  // Validate critical env secrets
+  const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const accessSecret = configService.get<string>('JWT_ACCESS_SECRET');
+  const refreshSecret = configService.get<string>('JWT_REFRESH_SECRET');
+
+  if (nodeEnv === 'production') {
+    if (
+      !accessSecret ||
+      accessSecret.includes('change-me-in-production') ||
+      accessSecret.length < 32
+    ) {
+      throw new Error(
+        'FATAL: JWT_ACCESS_SECRET must be at least 32 characters long and not contain the default placeholder in production mode!',
+      );
+    }
+    if (
+      !refreshSecret ||
+      refreshSecret.includes('change-me-in-production') ||
+      refreshSecret.length < 32
+    ) {
+      throw new Error(
+        'FATAL: JWT_REFRESH_SECRET must be at least 32 characters long and not contain the default placeholder in production mode!',
+      );
+    }
+  } else {
+    if (!accessSecret || accessSecret.includes('change-me-in-production')) {
+      logger.warn(
+        '⚠️ JWT_ACCESS_SECRET is using the default placeholder value. Change this before production deployment!',
+      );
+    }
+    if (!refreshSecret || refreshSecret.includes('change-me-in-production')) {
+      logger.warn(
+        '⚠️ JWT_REFRESH_SECRET is using the default placeholder value. Change this before production deployment!',
+      );
+    }
+  }
+
   // ─── Security Layer 1: Helmet (HTTP security headers) ────────
   app.use(helmet());
 
@@ -49,7 +86,12 @@ async function bootstrap() {
   await app.listen(port);
 
   logger.log(`🚀 Dompetrack Backend running on http://localhost:${port}/api`);
-  logger.log(`🔒 Security: Helmet ✅ | CORS ✅ | Rate Limit ✅ | Validation ✅`);
+  logger.log(
+    `🔒 Security: Helmet ✅ | CORS ✅ | Rate Limit ✅ | Validation ✅`,
+  );
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Fatal error during bootstrap:', err);
+  process.exit(1);
+});

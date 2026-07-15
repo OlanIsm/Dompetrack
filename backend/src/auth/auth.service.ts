@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
+import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
@@ -52,10 +52,34 @@ export class AuthService {
     // Create default categories for the new user
     await this.prisma.category.createMany({
       data: [
-        { name: 'Makanan', icon: '🍔', color: '#FF6B6B', isDefault: true, userId: user.id },
-        { name: 'Primer', icon: '🏠', color: '#4ECDC4', isDefault: true, userId: user.id },
-        { name: 'Hobi', icon: '🎮', color: '#45B7D1', isDefault: true, userId: user.id },
-        { name: 'Lainnya', icon: '📦', color: '#96CEB4', isDefault: true, userId: user.id },
+        {
+          name: 'Makanan',
+          icon: '🍔',
+          color: '#FF6B6B',
+          isDefault: true,
+          userId: user.id,
+        },
+        {
+          name: 'Primer',
+          icon: '🏠',
+          color: '#4ECDC4',
+          isDefault: true,
+          userId: user.id,
+        },
+        {
+          name: 'Hobi',
+          icon: '🎮',
+          color: '#45B7D1',
+          isDefault: true,
+          userId: user.id,
+        },
+        {
+          name: 'Lainnya',
+          icon: '📦',
+          color: '#96CEB4',
+          isDefault: true,
+          userId: user.id,
+        },
       ],
     });
 
@@ -111,7 +135,10 @@ export class AuthService {
       throw new ForbiddenException('Access denied');
     }
 
-    const refreshTokenMatch = await bcrypt.compare(refreshToken, user.refreshToken);
+    const refreshTokenMatch = await bcrypt.compare(
+      refreshToken,
+      user.refreshToken,
+    );
     if (!refreshTokenMatch) {
       throw new ForbiddenException('Access denied');
     }
@@ -142,11 +169,17 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_ACCESS_EXPIRY', '15m') as any,
+        expiresIn: this.configService.get<string>(
+          'JWT_ACCESS_EXPIRY',
+          '15m',
+        ) as JwtSignOptions['expiresIn'],
       }),
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get<string>('JWT_REFRESH_EXPIRY', '7d') as any,
+        expiresIn: this.configService.get<string>(
+          'JWT_REFRESH_EXPIRY',
+          '7d',
+        ) as JwtSignOptions['expiresIn'],
       }),
     ]);
 
@@ -154,7 +187,10 @@ export class AuthService {
   }
 
   private async updateRefreshToken(userId: string, refreshToken: string) {
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, this.SALT_ROUNDS);
+    const hashedRefreshToken = await bcrypt.hash(
+      refreshToken,
+      this.SALT_ROUNDS,
+    );
     await this.prisma.user.update({
       where: { id: userId },
       data: { refreshToken: hashedRefreshToken },

@@ -5,7 +5,21 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateTransactionDto, QueryTransactionDto, UpdateTransactionDto } from './dto';
+import {
+  CreateTransactionDto,
+  QueryTransactionDto,
+  UpdateTransactionDto,
+  TransactionTypeDto,
+} from './dto';
+import { Prisma, Transaction, Category } from '@prisma/client';
+
+export type TransactionWithCategory = Transaction & {
+  category: Category | null;
+};
+
+export type SerializedTransaction = Omit<TransactionWithCategory, 'amount'> & {
+  amount: number;
+};
 
 @Injectable()
 export class TransactionsService {
@@ -16,7 +30,7 @@ export class TransactionsService {
    * Amount is stored as BigInt (in smallest currency unit, e.g., Rupiah).
    */
   async create(userId: string, dto: CreateTransactionDto) {
-    if (dto.type === 'EXPENSE' && !dto.categoryId) {
+    if (dto.type === TransactionTypeDto.EXPENSE && !dto.categoryId) {
       throw new BadRequestException('Kategori wajib dipilih untuk pengeluaran');
     }
 
@@ -50,7 +64,7 @@ export class TransactionsService {
    * List transactions for a user, optionally filtered by month/year.
    */
   async findAll(userId: string, query: QueryTransactionDto) {
-    const where: any = { userId };
+    const where: Prisma.TransactionWhereInput = { userId };
 
     // Filter by month and year if provided
     if (query.month !== undefined && query.year !== undefined) {
@@ -70,14 +84,14 @@ export class TransactionsService {
       take: query.limit || 100,
     });
 
-    return transactions.map(this.serializeTransaction);
+    return transactions.map((tx) => this.serializeTransaction(tx));
   }
 
   /**
    * Get financial summary for a user (income, expense, balance).
    */
   async getSummary(userId: string, query: QueryTransactionDto) {
-    const where: any = { userId };
+    const where: Prisma.TransactionWhereInput = { userId };
 
     if (query.month !== undefined && query.year !== undefined) {
       const startDate = new Date(query.year, query.month, 1);
@@ -135,7 +149,11 @@ export class TransactionsService {
   /**
    * Update a transaction (only if it belongs to the user).
    */
-  async update(userId: string, transactionId: string, dto: UpdateTransactionDto) {
+  async update(
+    userId: string,
+    transactionId: string,
+    dto: UpdateTransactionDto,
+  ) {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id: transactionId },
     });
@@ -148,7 +166,11 @@ export class TransactionsService {
       throw new ForbiddenException('Tidak berhak mengubah transaksi ini');
     }
 
-    if (dto.type === 'EXPENSE' && !dto.categoryId && !transaction.categoryId) {
+    if (
+      dto.type === TransactionTypeDto.EXPENSE &&
+      !dto.categoryId &&
+      !transaction.categoryId
+    ) {
       throw new BadRequestException('Kategori wajib dipilih untuk pengeluaran');
     }
 
@@ -168,9 +190,15 @@ export class TransactionsService {
       data: {
         type: dto.type,
         amount: dto.amount !== undefined ? BigInt(dto.amount) : undefined,
-        description: dto.description !== undefined ? dto.description : undefined,
+        description:
+          dto.description !== undefined ? dto.description : undefined,
         date: dto.date ? new Date(dto.date) : undefined,
-        categoryId: dto.type === 'INCOME' ? null : (dto.categoryId !== undefined ? dto.categoryId : undefined),
+        categoryId:
+          dto.type === TransactionTypeDto.INCOME
+            ? null
+            : dto.categoryId !== undefined
+              ? dto.categoryId
+              : undefined,
       },
       include: { category: true },
     });
@@ -182,7 +210,7 @@ export class TransactionsService {
    * Get AI Insight from Gemini or dynamic rule-based fallback.
    */
   async getAiInsight(userId: string, query: QueryTransactionDto) {
-    const where: any = { userId };
+    const where: Prisma.TransactionWhereInput = { userId };
 
     if (query.month !== undefined && query.year !== undefined) {
       const startDate = new Date(query.year, query.month, 1);
@@ -226,9 +254,11 @@ export class TransactionsService {
 
     if (apiKey) {
       try {
-        const txList = txs.map(tx => {
-          return `- ${tx.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'}: ${formatRupiah(Number(tx.amount))} - ${tx.description || tx.category?.name || ''} (${tx.date.toISOString().split('T')[0]})`;
-        }).join('\n');
+        const txList = txs
+          .map((tx) => {
+            return `- ${tx.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'}: ${formatRupiah(Number(tx.amount))} - ${tx.description || tx.category?.name || ''} (${tx.date.toISOString().split('T')[0]})`;
+          })
+          .join('\n');
 
         const prompt = `Anda adalah Dompetrack AI, asisten keuangan pribadi yang cerdas.
 Analisis data keuangan pengguna bulan ini:
@@ -255,12 +285,20 @@ Ketentuannya:
               contents: [{ parts: [{ text: prompt }] }],
             }),
             // Set a short timeout (5 seconds) using signal
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(5000),
           },
         );
 
         if (response.ok) {
-          const data = await response.json();
+          const data = (await response.json()) as {
+            candidates?: Array<{
+              content?: {
+                parts?: Array<{
+                  text?: string;
+                }>;
+              };
+            }>;
+          };
           const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
             return { insight: text.trim() };
@@ -274,7 +312,8 @@ Ketentuannya:
     // Rule-based fallback if Gemini API key not set or calls fail
     if (txs.length === 0) {
       return {
-        insight: 'Belum ada transaksi di periode ini. Yuk, mulai catat pemasukan atau pengeluaran Anda untuk mendapatkan analisis keuangan pintar!',
+        insight:
+          'Belum ada transaksi di periode ini. Yuk, mulai catat pemasukan atau pengeluaran Anda untuk mendapatkan analisis keuangan pintar!',
       };
     }
 
@@ -312,7 +351,9 @@ Ketentuannya:
   }
 
   // BigInt cannot be serialized to JSON directly, so convert to Number
-  private serializeTransaction(tx: any) {
+  private serializeTransaction(
+    tx: TransactionWithCategory,
+  ): SerializedTransaction {
     return {
       ...tx,
       amount: Number(tx.amount),

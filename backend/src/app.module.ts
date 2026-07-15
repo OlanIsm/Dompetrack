@@ -28,10 +28,12 @@ export class AppController {
     ConfigModule.forRoot({ isGlobal: true }),
 
     // Rate limiting: max 100 requests per 60 seconds per IP
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
 
     // Core modules
     PrismaModule,
