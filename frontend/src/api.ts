@@ -224,12 +224,31 @@ export const api = {
     },
   },
   transactions: {
-    getAll: async (month?: number, year?: number): Promise<Transaction[]> => {
+    getAll: async (
+      month?: number,
+      year?: number,
+      page?: number,
+      limit?: number,
+    ): Promise<{
+      transactions: Transaction[];
+      pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      };
+    }> => {
       let path = '/transactions';
       const params = new URLSearchParams();
       if (month !== undefined && year !== undefined) {
         params.append('month', String(month));
         params.append('year', String(year));
+      }
+      if (page !== undefined) {
+        params.append('page', String(page));
+      }
+      if (limit !== undefined) {
+        params.append('limit', String(limit));
       }
       if (params.toString()) {
         path += `?${params.toString()}`;

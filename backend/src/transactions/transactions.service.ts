@@ -61,30 +61,54 @@ export class TransactionsService {
   }
 
   /**
-   * List transactions for a user, optionally filtered by month/year.
+   * List transactions for a user, optionally filtered by month/year with pagination.
    */
   async findAll(userId: string, query: QueryTransactionDto) {
     const where: Prisma.TransactionWhereInput = { userId };
 
-    // Filter by month and year if provided
+    // Filter by month and year if provided (UTC timezone neutral range)
     if (query.month !== undefined && query.year !== undefined) {
-      const startDate = new Date(query.year, query.month, 1);
-      const endDate = new Date(query.year, query.month + 1, 0, 23, 59, 59, 999);
+      const startDate = new Date(
+        Date.UTC(query.year, query.month, 1, 0, 0, 0, 0),
+      );
+      const endDate = new Date(
+        Date.UTC(query.year, query.month + 1, 0, 23, 59, 59, 999),
+      );
       where.date = { gte: startDate, lte: endDate };
     } else if (query.year !== undefined) {
-      const startDate = new Date(query.year, 0, 1);
-      const endDate = new Date(query.year, 11, 31, 23, 59, 59, 999);
+      const startDate = new Date(Date.UTC(query.year, 0, 1, 0, 0, 0, 0));
+      const endDate = new Date(Date.UTC(query.year, 11, 31, 23, 59, 59, 999));
       where.date = { gte: startDate, lte: endDate };
     }
 
-    const transactions = await this.prisma.transaction.findMany({
-      where,
-      include: { category: true },
-      orderBy: { date: 'desc' },
-      take: query.limit || 100,
-    });
+    const page = query.page || 1;
+    const limit = query.limit || 50;
+    const skip = (page - 1) * limit;
 
-    return transactions.map((tx) => this.serializeTransaction(tx));
+    const [transactions, total] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        include: { category: true },
+        orderBy: { date: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.transaction.count({ where }),
+    ]);
+
+    const serializedTransactions = transactions.map((tx) =>
+      this.serializeTransaction(tx),
+    );
+
+    return {
+      transactions: serializedTransactions,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**
@@ -94,8 +118,12 @@ export class TransactionsService {
     const where: Prisma.TransactionWhereInput = { userId };
 
     if (query.month !== undefined && query.year !== undefined) {
-      const startDate = new Date(query.year, query.month, 1);
-      const endDate = new Date(query.year, query.month + 1, 0, 23, 59, 59, 999);
+      const startDate = new Date(
+        Date.UTC(query.year, query.month, 1, 0, 0, 0, 0),
+      );
+      const endDate = new Date(
+        Date.UTC(query.year, query.month + 1, 0, 23, 59, 59, 999),
+      );
       where.date = { gte: startDate, lte: endDate };
     }
 
@@ -213,8 +241,12 @@ export class TransactionsService {
     const where: Prisma.TransactionWhereInput = { userId };
 
     if (query.month !== undefined && query.year !== undefined) {
-      const startDate = new Date(query.year, query.month, 1);
-      const endDate = new Date(query.year, query.month + 1, 0, 23, 59, 59, 999);
+      const startDate = new Date(
+        Date.UTC(query.year, query.month, 1, 0, 0, 0, 0),
+      );
+      const endDate = new Date(
+        Date.UTC(query.year, query.month + 1, 0, 23, 59, 59, 999),
+      );
       where.date = { gte: startDate, lte: endDate };
     }
 

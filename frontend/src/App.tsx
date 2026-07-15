@@ -1,24 +1,24 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  House, 
-  PlusCircle, 
-  BarChart3, 
-  Settings as SettingsIcon, 
-  Bell, 
-  ChevronRight, 
-  ChevronLeft, 
-  Utensils, 
-  ShoppingBag, 
-  Gamepad2, 
-  MoreHorizontal, 
-  LogOut, 
-  ArrowLeft, 
-  Calendar, 
-  FileText, 
-  Check, 
-  Coffee, 
-  Car, 
-  Briefcase, 
+import {
+  House,
+  PlusCircle,
+  BarChart3,
+  Settings as SettingsIcon,
+  Bell,
+  ChevronRight,
+  ChevronLeft,
+  Utensils,
+  ShoppingBag,
+  Gamepad2,
+  MoreHorizontal,
+  LogOut,
+  ArrowLeft,
+  Calendar,
+  FileText,
+  Check,
+  Coffee,
+  Car,
+  Briefcase,
   TrendingUp,
   TrendingDown,
   Mail,
@@ -66,6 +66,13 @@ function App() {
   // ---------------- STATE ----------------
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [prevMonthTransactions, setPrevMonthTransactions] = useState<Transaction[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [paginationInfo, setPaginationInfo] = useState<{
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  } | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [filterType, setFilterType] = useState<'month' | 'all'>('month');
@@ -81,13 +88,14 @@ function App() {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   const [currentTab, setCurrentTab] = useState<'home' | 'add' | 'laporan' | 'settings'>('home');
-  
+
   // Authentication states
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string } | null>(() => {
     const saved = localStorage.getItem('dompetrack_user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [authScreen, setAuthScreen] = useState<'login' | 'signup'>('login');
+  const [authScreen, setAuthScreen] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [forgotEmailSent, setForgotEmailSent] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authName, setAuthName] = useState('');
@@ -104,7 +112,7 @@ function App() {
     const dd = String(d.getDate()).padStart(2, '0');
     const dateStr = `${yyyy}-${mm}-${dd}`;
     const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
-    
+
     return {
       id: tx.id,
       type: tx.type,
@@ -118,7 +126,7 @@ function App() {
     };
   };
 
-  const fetchData = async () => {
+  const fetchData = async (pageToFetch = currentPage) => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
@@ -131,17 +139,18 @@ function App() {
           setTxCategory(cats[0].id);
         }
       }
-      
+
       // 2. Fetch transactions based on filterType
-      let txsData = [];
+      let responseData;
       if (filterType === 'month') {
-        txsData = await api.transactions.getAll(selectedMonth, selectedYear);
+        responseData = await api.transactions.getAll(selectedMonth, selectedYear, pageToFetch);
       } else {
-        txsData = await api.transactions.getAll();
+        responseData = await api.transactions.getAll(undefined, undefined, pageToFetch);
       }
-      
-      const formatted = txsData.map(formatTxForFrontend);
+
+      const formatted = responseData.transactions.map(formatTxForFrontend);
       setTransactions(formatted);
+      setPaginationInfo(responseData.pagination);
 
       // 3. Fetch previous month's transactions
       let prevMonth = selectedMonth - 1;
@@ -150,8 +159,8 @@ function App() {
         prevMonth = 11;
         prevYear -= 1;
       }
-      const prevTxsData = await api.transactions.getAll(prevMonth, prevYear);
-      const formattedPrev = prevTxsData.map(formatTxForFrontend);
+      const prevTxsResponse = await api.transactions.getAll(prevMonth, prevYear, 1, 100);
+      const formattedPrev = prevTxsResponse.transactions.map(formatTxForFrontend);
       setPrevMonthTransactions(formattedPrev);
     } catch (err) {
       console.error("Gagal mengambil data dari API:", err);
@@ -214,13 +223,38 @@ function App() {
       setIsLoading(false);
     }
   };
-  
+
   // Date states
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth()); // Default to current month
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear()); // Default to current year
 
+  const [aiConsent, setAiConsent] = useState<boolean>(() => {
+    const email = currentUser?.email || 'guest';
+    const saved = localStorage.getItem(`${email}_ai_consent`);
+    return saved === 'true';
+  });
+
+  useEffect(() => {
+    if (currentUser) {
+      const email = currentUser.email;
+      const saved = localStorage.getItem(`${email}_ai_consent`);
+      setAiConsent(saved === 'true');
+    }
+  }, [currentUser]);
+
+  const handleToggleAiConsent = (val: boolean) => {
+    setAiConsent(val);
+    if (currentUser) {
+      localStorage.setItem(`${currentUser.email}_ai_consent`, String(val));
+    }
+  };
+
   const fetchAiInsight = async () => {
     if (!currentUser) return;
+    if (!aiConsent) {
+      setAiInsight("AI Insight dinonaktifkan. Silakan aktifkan persetujuan pemrosesan AI di atas atau melalui Pengaturan.");
+      return;
+    }
     setAiLoading(true);
     try {
       const res = await api.transactions.getAiInsight(
@@ -241,13 +275,74 @@ function App() {
       fetchAiInsight();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, currentUser, selectedMonth, selectedYear, filterType]);
+  }, [transactions, currentUser, selectedMonth, selectedYear, filterType, aiConsent]);
 
   // Home notification panel state
   const [showNotifications, setShowNotifications] = useState(false);
 
   // Settings states
-  const [notifEnabled, setNotifEnabled] = useState(true);
+  const [notifEnabled, setNotifEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('dompetrack_notif_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dompetrack_notif_enabled', String(notifEnabled));
+  }, [notifEnabled]);
+
+
+  const [showCategoryPreviewModal, setShowCategoryPreviewModal] = useState(false);
+
+  const handleExportCSV = async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.transactions.getAll(undefined, undefined, 1, 100000);
+      const txs = res.transactions;
+
+      if (!txs || txs.length === 0) {
+        alert('Tidak ada transaksi untuk diekspor');
+        return;
+      }
+
+      const headers = ['ID', 'Type', 'Amount', 'Category', 'Description', 'Date'];
+
+      const escapeCSV = (val: any) => {
+        if (val === null || val === undefined) return '';
+        let str = String(val);
+        str = str.replace(/"/g, '""');
+        if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+          str = `"${str}"`;
+        }
+        return str;
+      };
+
+      const rows = txs.map((tx: any) => [
+        escapeCSV(tx.id),
+        escapeCSV(tx.type),
+        escapeCSV(tx.amount),
+        escapeCSV(tx.category?.name || 'Other'),
+        escapeCSV(tx.description || ''),
+        escapeCSV(tx.date)
+      ]);
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `dompetrack_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Gagal mengekspor data:', err);
+      alert('Gagal mengekspor data transaksi');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Form State for Add Transaction
   const [txType, setTxType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
@@ -264,13 +359,22 @@ function App() {
   const [showSuccessToast, setShowSuccessToast] = useState<boolean>(false);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
-  // Effect to load data
+  // Effect to load data when filters change (resets page to 1)
   useEffect(() => {
     if (currentUser) {
-      fetchData();
+      setCurrentPage(1);
+      fetchData(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, selectedMonth, selectedYear, filterType]);
+
+  // Effect to load data when page changes
+  useEffect(() => {
+    if (currentUser && currentPage !== 1) {
+      fetchData(currentPage);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   // Effect to listen to logout event from API
   useEffect(() => {
@@ -358,7 +462,7 @@ function App() {
     });
 
     const totalExpense = foodSum + essentialsSum + hobbySum + otherSum;
-    
+
     // Category transaction count (For Report tab)
     const counts = { Food: 0, Essentials: 0, Hobby: 0, Other: 0 };
     periodTransactions.forEach(tx => {
@@ -402,9 +506,34 @@ function App() {
     };
   }, [transactions, periodTransactions, selectedMonth, selectedYear, filterType]);
 
+  const cardTheme = useMemo(() => {
+    if (stats.balance < 0) {
+      return {
+        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(185, 28, 28, 0.9) 50%, rgba(69, 10, 10, 0.95) 100%)',
+        boxShadow: '0 12px 24px -10px rgba(239, 68, 68, 0.45)',
+        status: 'danger'
+      };
+    }
+    if (stats.income > 0 && stats.balance <= stats.income * 0.2) {
+      return {
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.9) 50%, rgba(120, 53, 4, 0.95) 100%)',
+        boxShadow: '0 12px 24px -10px rgba(245, 158, 11, 0.45)',
+        status: 'warning'
+      };
+    }
+    return {
+      background: 'var(--gradient-card)',
+      boxShadow: '0 12px 24px -10px rgba(109, 95, 253, 0.4)',
+      status: 'normal'
+    };
+  }, [stats.balance, stats.income]);
+
+  const isCritical = stats.balance < 0;
+
+
   const categoryMom = useMemo(() => {
     const currentSums = stats.categorySums;
-    
+
     // Calculate previous month's sums
     let prevFoodSum = 0;
     let prevEssentialsSum = 0;
@@ -483,7 +612,7 @@ function App() {
   // Grouped transactions by day (For Report tab)
   const groupedTransactionsByDay = useMemo(() => {
     const groups: { [date: string]: { txs: Transaction[]; totalExpense: number; totalIncome: number } } = {};
-    
+
     // Sort transactions newest to oldest
     const sorted = [...periodTransactions].sort((a, b) => {
       return new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -516,7 +645,7 @@ function App() {
     if (normalizedNote.includes('freelance') || normalizedNote.includes('salary') || normalizedNote.includes('gaji') || normalizedNote.includes('payout')) {
       return <Briefcase className="icon" />;
     }
-    
+
     const category = categoryName.toLowerCase();
     if (category.includes('makan') || category.includes('food')) {
       return <Utensils className="icon" />;
@@ -590,11 +719,11 @@ function App() {
       });
 
       await fetchData();
-      
+
       // Clear Form
       setTxAmountStr('0');
       setTxNote('');
-      
+
       // Show Toast Animation
       setShowSuccessToast(true);
       setTimeout(() => {
@@ -646,11 +775,11 @@ function App() {
       const today = new Date();
       const [year, month, day] = editDate.split('-').map(Number);
       const originalDateObj = editingTransaction.rawDate ? new Date(editingTransaction.rawDate) : null;
-      
+
       let combinedDate: Date;
-      if (originalDateObj && 
-          originalDateObj.getFullYear() === year && 
-          originalDateObj.getMonth() === month - 1 && 
+      if (originalDateObj &&
+          originalDateObj.getFullYear() === year &&
+          originalDateObj.getMonth() === month - 1 &&
           originalDateObj.getDate() === day) {
         // Date did not change, preserve original time
         combinedDate = originalDateObj;
@@ -681,15 +810,15 @@ function App() {
     const dateObj = new Date(dateStr);
     const day = dateObj.getDate();
     const month = INDO_MONTHS[dateObj.getMonth()].toUpperCase();
-    
+
     // Check if it matches today or yesterday
     const today = new Date();
     const yesterday = new Date();
     yesterday.setDate(today.getDate() - 1);
 
-    const compareDate = (d1: Date, d2: Date) => 
-      d1.getDate() === d2.getDate() && 
-      d1.getMonth() === d2.getMonth() && 
+    const compareDate = (d1: Date, d2: Date) =>
+      d1.getDate() === d2.getDate() &&
+      d1.getMonth() === d2.getMonth() &&
       d1.getFullYear() === d2.getFullYear();
 
     if (compareDate(dateObj, today)) {
@@ -724,7 +853,7 @@ function App() {
       <div className="device-frame">
         {/* Notch Area */}
         <div className="device-notch"></div>
-        
+
         {/* Device screen */}
         <div className="app-screen">
           {!currentUser ? (
@@ -746,10 +875,10 @@ function App() {
                     <label className="auth-input-label">EMAIL</label>
                     <div className="auth-input-wrapper">
                       <Mail className="auth-input-icon" size={16} />
-                      <input 
-                        type="email" 
-                        className="auth-input" 
-                        placeholder="contoh@email.com" 
+                      <input
+                        type="email"
+                        className="auth-input"
+                        placeholder="contoh@email.com"
                         value={authEmail}
                         onChange={(e) => setAuthEmail(e.target.value)}
                         required
@@ -761,17 +890,17 @@ function App() {
                     <label className="auth-input-label">PASSWORD</label>
                     <div className="auth-input-wrapper">
                       <Lock className="auth-input-icon" size={16} />
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        className="auth-input" 
-                        placeholder="••••••••" 
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="auth-input"
+                        placeholder="••••••••"
                         value={authPassword}
                         onChange={(e) => setAuthPassword(e.target.value)}
                         required
                       />
-                      <button 
-                        type="button" 
-                        className="auth-eye-icon" 
+                      <button
+                        type="button"
+                        className="auth-eye-icon"
                         onClick={() => setShowPassword(prev => !prev)}
                       >
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -779,7 +908,16 @@ function App() {
                     </div>
                   </div>
 
-                  <a href="#forgot" className="auth-forgot-link" onClick={(e) => { e.preventDefault(); alert('Hubungi admin untuk reset password (olan@dompetrack.com / password123 atau buat akun baru)'); }}>
+                  <a
+                    href="#forgot"
+                    className="auth-forgot-link"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setAuthScreen('forgot');
+                      setForgotEmailSent(false);
+                      setAuthError('');
+                    }}
+                  >
                     Lupa Password?
                   </a>
 
@@ -795,7 +933,7 @@ function App() {
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : authScreen === 'signup' ? (
               /* SIGN UP SCREEN */
               <div className="auth-container fade-in">
                 <div className="auth-header">
@@ -813,10 +951,10 @@ function App() {
                     <label className="auth-input-label">NAMA LENGKAP</label>
                     <div className="auth-input-wrapper">
                       <User className="auth-input-icon" size={16} />
-                      <input 
-                        type="text" 
-                        className="auth-input" 
-                        placeholder="Nama Anda" 
+                      <input
+                        type="text"
+                        className="auth-input"
+                        placeholder="Nama Anda"
                         value={authName}
                         onChange={(e) => setAuthName(e.target.value)}
                         required
@@ -828,10 +966,10 @@ function App() {
                     <label className="auth-input-label">EMAIL</label>
                     <div className="auth-input-wrapper">
                       <Mail className="auth-input-icon" size={16} />
-                      <input 
-                        type="email" 
-                        className="auth-input" 
-                        placeholder="contoh@email.com" 
+                      <input
+                        type="email"
+                        className="auth-input"
+                        placeholder="contoh@email.com"
                         value={authEmail}
                         onChange={(e) => setAuthEmail(e.target.value)}
                         required
@@ -843,17 +981,17 @@ function App() {
                     <label className="auth-input-label">PASSWORD</label>
                     <div className="auth-input-wrapper">
                       <Lock className="auth-input-icon" size={16} />
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        className="auth-input" 
-                        placeholder="Minimal 6 karakter" 
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="auth-input"
+                        placeholder="Minimal 6 karakter"
                         value={authPassword}
                         onChange={(e) => setAuthPassword(e.target.value)}
                         required
                       />
-                      <button 
-                        type="button" 
-                        className="auth-eye-icon" 
+                      <button
+                        type="button"
+                        className="auth-eye-icon"
                         onClick={() => setShowPassword(prev => !prev)}
                       >
                         {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -865,10 +1003,10 @@ function App() {
                     <label className="auth-input-label">KONFIRMASI PASSWORD</label>
                     <div className="auth-input-wrapper">
                       <Lock className="auth-input-icon" size={16} />
-                      <input 
-                        type={showPassword ? "text" : "password"} 
-                        className="auth-input" 
-                        placeholder="Ulangi password" 
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="auth-input"
+                        placeholder="Ulangi password"
                         value={authConfirmPassword}
                         onChange={(e) => setAuthConfirmPassword(e.target.value)}
                         required
@@ -877,10 +1015,10 @@ function App() {
                   </div>
 
                   <div className="auth-checkbox-row">
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="terms-checkbox"
-                      className="auth-checkbox" 
+                      className="auth-checkbox"
                       checked={agreeTerms}
                       onChange={(e) => setAgreeTerms(e.target.checked)}
                     />
@@ -897,6 +1035,77 @@ function App() {
                 <div className="auth-footer">
                   Sudah punya akun?{' '}
                   <button className="auth-footer-link" onClick={() => { setAuthScreen('login'); setAuthError(''); setAuthEmail(''); setAuthPassword(''); }}>
+                    Masuk Di Sini
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* FORGOT PASSWORD SCREEN */
+              <div className="auth-container fade-in">
+                <div className="auth-header">
+                  <div className="auth-logo-container" style={{ background: 'none' }}>
+                    <img src="/Dompetrack.png" alt="Dompetrack Logo" className="auth-logo" />
+                  </div>
+                  <h1 className="auth-title">Pulihkan Kata Sandi</h1>
+                  <p className="auth-subtitle">Masukkan alamat email terdaftar Anda untuk memulihkan akses akun</p>
+                </div>
+
+                {forgotEmailSent ? (
+                  <div className="auth-success-card" style={{
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    textAlign: 'center',
+                    marginBottom: '20px',
+                    animation: 'fadeIn 0.3s ease-out'
+                  }}>
+                    <div style={{ color: '#10B981', fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
+                      Permintaan Terkirim
+                    </div>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4', margin: 0 }}>
+                      Instruksi pemulihan telah dikirim ke email Anda. Silakan hubungi administrator sistem jika Anda tidak menerima email tersebut.
+                    </p>
+                  </div>
+                ) : (
+                  <form
+                    className="auth-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!authEmail) {
+                        setAuthError('Email wajib diisi');
+                        return;
+                      }
+                      setForgotEmailSent(true);
+                      setAuthError('');
+                    }}
+                  >
+                    {authError && <div className="auth-error">{authError}</div>}
+
+                    <div className="auth-input-group">
+                      <label className="auth-input-label">EMAIL</label>
+                      <div className="auth-input-wrapper">
+                        <Mail className="auth-input-icon" size={16} />
+                        <input
+                          type="email"
+                          className="auth-input"
+                          placeholder="contoh@email.com"
+                          value={authEmail}
+                          onChange={(e) => setAuthEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <button type="submit" className="auth-btn">
+                      Kirim Tautan Pemulihan
+                    </button>
+                  </form>
+                )}
+
+                <div className="auth-footer">
+                  Sudah ingat kata sandi?{' '}
+                  <button className="auth-footer-link" onClick={() => { setAuthScreen('login'); setAuthError(''); setAuthEmail(''); setForgotEmailSent(false); }}>
                     Masuk Di Sini
                   </button>
                 </div>
@@ -978,7 +1187,7 @@ function App() {
 
           {/* MAIN PAGE RENDERER */}
           <div className="screen-content">
-            
+
             {/* 1. HOME SCREEN */}
             {currentTab === 'home' && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
@@ -988,7 +1197,7 @@ function App() {
                     <div className="greeting-title">Halo, {currentUser?.name || 'Olan'}</div>
                     <div className="greeting-date">{formatGreetingDate()}</div>
                   </div>
-                  
+
                   <div className="filter-toggle-container" style={{
                     display: 'flex',
                     background: 'rgba(255, 255, 255, 0.05)',
@@ -996,7 +1205,7 @@ function App() {
                     padding: '2px',
                     border: '1px solid rgba(255, 255, 255, 0.08)'
                   }}>
-                    <button 
+                    <button
                       className={`filter-toggle-btn ${filterType === 'month' ? 'active' : ''}`}
                       onClick={() => setFilterType('month')}
                       style={{
@@ -1013,7 +1222,7 @@ function App() {
                     >
                       Bulan Ini
                     </button>
-                    <button 
+                    <button
                       className={`filter-toggle-btn ${filterType === 'all' ? 'active' : ''}`}
                       onClick={() => setFilterType('all')}
                       style={{
@@ -1034,10 +1243,16 @@ function App() {
                 </div>
 
                 {/* Hero Balance Card */}
-                <div className="balance-card">
+                <div
+                  className="balance-card"
+                  style={{
+                    background: cardTheme.background,
+                    boxShadow: cardTheme.boxShadow
+                  }}
+                >
                   <div className="balance-label">BALANCE SISA</div>
                   <div className="balance-amount">{formatRupiah(stats.balance)}</div>
-                  
+
                   <div className="income-expense-row">
                     <div className="ie-item">
                       <div className="ie-label">INCOME</div>
@@ -1098,7 +1313,7 @@ function App() {
                       Catatan keuangan Anda masih kosong. Mulai catat untuk melacak arus kas Anda.
                     </p>
                     <div className="empty-state-actions" style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '8px' }}>
-                      <button 
+                      <button
                         onClick={() => { setTxType('INCOME'); setCurrentTab('add'); }}
                         style={{
                           flex: 1,
@@ -1115,7 +1330,7 @@ function App() {
                       >
                         + Pemasukan
                       </button>
-                      <button 
+                      <button
                         onClick={() => { setTxType('EXPENSE'); setCurrentTab('add'); }}
                         style={{
                           flex: 1,
@@ -1144,7 +1359,7 @@ function App() {
                           <ChevronRight size={16} />
                         </span>
                       </div>
-                      
+
                       <div className="allocation-card">
                         <div className="allocation-bar">
                           <div className="alloc-seg" style={{ width: `${stats.categoryPercents.Food}%`, backgroundColor: '#7C6FFF' }}></div>
@@ -1175,40 +1390,127 @@ function App() {
                     </div>
 
                     {/* AI Insight Card */}
-                    <div className="ai-insight-card" style={{ position: 'relative' }}>
-                      <div className="ai-icon-container">
-                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                        </svg>
+                    <div
+                      className="ai-insight-card"
+                      style={{
+                        position: 'relative',
+                        borderLeft: isCritical ? '4px solid var(--danger)' : undefined,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '12px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', gap: '12px' }}>
+                        <div
+                          className="ai-icon-container"
+                          style={{
+                            background: isCritical ? 'rgba(239, 68, 68, 0.1)' : undefined,
+                            color: isCritical ? 'var(--danger)' : undefined
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                          </svg>
+                        </div>
+                        <div className="ai-content" style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                            <span
+                              className="ai-tag"
+                              style={{
+                                color: isCritical ? 'var(--danger)' : undefined
+                              }}
+                            >
+                              AI INSIGHT
+                            </span>
+                            {aiConsent && (
+                              <button
+                                onClick={fetchAiInsight}
+                                disabled={aiLoading}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: isCritical ? 'var(--danger)' : 'var(--primary)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  padding: '2px'
+                                }}
+                                title="Refresh Insight"
+                              >
+                                <RefreshCw size={14} className={aiLoading ? 'animate-spin' : ''} />
+                              </button>
+                            )}
+                          </div>
+                          <p className="ai-text">
+                            {aiLoading ? (
+                              <span style={{ opacity: 0.6 }}>Menganalisis data keuangan Anda...</span>
+                            ) : (
+                              aiInsight || "Mulai catat transaksi untuk mendapatkan analisis keuangan pintar dari AI."
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div className="ai-content" style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                          <span className="ai-tag">AI INSIGHT</span>
-                          <button 
-                            onClick={fetchAiInsight} 
-                            disabled={aiLoading}
-                            style={{ 
-                              background: 'none', 
-                              border: 'none', 
-                              color: 'var(--primary)', 
+
+                      {!aiConsent ? (
+                        <div className="ai-consent-banner" style={{
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          borderRadius: '12px',
+                          padding: '12px',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px'
+                        }}>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                            AI Insight menggunakan Google Gemini. Data transaksi dienkripsi saat transit untuk proses analisis keuangan Anda.
+                          </span>
+                          <button
+                            onClick={() => handleToggleAiConsent(true)}
+                            style={{
+                              background: 'var(--primary)',
+                              color: '#000000',
+                              border: 'none',
+                              borderRadius: '8px',
+                              padding: '8px 12px',
+                              fontSize: '11px',
+                              fontWeight: 700,
                               cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              padding: '2px'
+                              width: 'max-content',
+                              alignSelf: 'flex-start',
+                              transition: 'all 0.2s'
                             }}
-                            title="Refresh Insight"
                           >
-                            <RefreshCw size={14} className={aiLoading ? 'animate-spin' : ''} />
+                            Aktifkan AI Insight
                           </button>
                         </div>
-                        <p className="ai-text">
-                          {aiLoading ? (
-                            <span style={{ opacity: 0.6 }}>Menganalisis data keuangan Anda...</span>
-                          ) : (
-                            aiInsight || "Mulai catat transaksi untuk mendapatkan analisis keuangan pintar dari AI."
-                          )}
-                        </p>
-                      </div>
+                      ) : (
+                        <div style={{
+                          fontSize: '10px',
+                          color: 'var(--text-muted)',
+                          borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                          paddingTop: '8px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '12px'
+                        }}>
+                          <span style={{ flex: 1, lineHeight: '1.3' }}>AI Insight menggunakan Google Gemini. Data transaksi dienkripsi saat transit untuk analisis keuangan Anda.</span>
+                          <button
+                            onClick={() => handleToggleAiConsent(false)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#ef4444',
+                              fontSize: '10px',
+                              cursor: 'pointer',
+                              padding: 0,
+                              fontWeight: 600
+                            }}
+                          >
+                            Nonaktifkan
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* Recent Transactions */}
@@ -1236,8 +1538,8 @@ function App() {
                               <span className={`tx-amount ${tx.type === 'EXPENSE' ? 'expense' : 'income'}`}>
                                 {tx.type === 'EXPENSE' ? '-' : '+'}{formatRupiah(tx.amount)}
                               </span>
-                              <button 
-                                className="delete-tx-btn" 
+                              <button
+                                className="delete-tx-btn"
                                 onClick={() => handleDeleteTransaction(tx.id)}
                                 style={{
                                   background: 'none',
@@ -1267,16 +1569,16 @@ function App() {
             {/* 2. ADD TRANSACTION SCREEN */}
             {currentTab === 'add' && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', width: '100%' }}>
-                
+
                 {/* Segmented Toggle: Pengeluaran / Pemasukan */}
                 <div className="toggle-container">
-                  <button 
+                  <button
                     className={`toggle-btn ${txType === 'EXPENSE' ? 'active' : ''}`}
                     onClick={() => setTxType('EXPENSE')}
                   >
                     Pengeluaran
                   </button>
-                  <button 
+                  <button
                     className={`toggle-btn ${txType === 'INCOME' ? 'active' : ''}`}
                     onClick={() => setTxType('INCOME')}
                   >
@@ -1312,9 +1614,9 @@ function App() {
                         } else {
                           iconEl = <MoreHorizontal size={16} />;
                         }
-                        
+
                         return (
-                          <button 
+                          <button
                             key={cat.id}
                             className={`category-chip ${isSelected ? 'active' : ''}`}
                             onClick={() => setTxCategory(cat.id)}
@@ -1345,18 +1647,18 @@ function App() {
                 {/* Notes Input Field */}
                 <div className="input-group">
                   <FileText className="input-icon" size={18} />
-                  <input 
-                    type="text" 
-                    className="text-input" 
-                    placeholder="What's this for?" 
+                  <input
+                    type="text"
+                    className="text-input"
+                    placeholder="What's this for?"
                     value={txNote}
                     onChange={(e) => setTxNote(e.target.value)}
                   />
                 </div>
 
                 {/* Date Picker Input */}
-                <div 
-                  className="input-group" 
+                <div
+                  className="input-group"
                   style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
                   onClick={() => {
                     if (dateInputRef.current && typeof dateInputRef.current.showPicker === 'function') {
@@ -1365,11 +1667,11 @@ function App() {
                   }}
                 >
                   <Calendar className="input-icon" size={18} style={{ color: '#FFFFFF' }} />
-                  <input 
+                  <input
                     ref={dateInputRef}
-                    type="date" 
-                    value={txDate} 
-                    onChange={(e) => setTxDate(e.target.value)} 
+                    type="date"
+                    value={txDate}
+                    onChange={(e) => setTxDate(e.target.value)}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -1385,26 +1687,26 @@ function App() {
                 {/* Numerical Keypad Custom */}
                 <div className="numpad-grid">
                   {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                    <button 
-                      key={num} 
-                      className="numpad-key" 
+                    <button
+                      key={num}
+                      className="numpad-key"
                       onClick={() => handleNumpadPress(num)}
                     >
                       {num}
                     </button>
                   ))}
-                  
+
                   {/* Decimal / Dot (representing comma or multiplier in Rupiah app, we make it decimal or empty) */}
                   <button className="numpad-key" style={{ fontSize: '20px' }} onClick={() => handleNumpadPress('000')}>
                     .000
                   </button>
-                  
+
                   <button className="numpad-key" onClick={() => handleNumpadPress('0')}>
                     0
                   </button>
-                  
-                  <button 
-                    className="numpad-key" 
+
+                  <button
+                    className="numpad-key"
                     onClick={() => handleNumpadPress('back')}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   >
@@ -1418,8 +1720,8 @@ function App() {
 
                 {/* Save Button Container */}
                 <div className="save-button-container">
-                  <button 
-                    className="save-btn" 
+                  <button
+                    className="save-btn"
                     onClick={handleSaveTransaction}
                     disabled={parseInt(txAmountStr, 10) <= 0}
                   >
@@ -1433,13 +1735,13 @@ function App() {
             {/* 3. REPORTS (LAPORAN) SCREEN */}
             {currentTab === 'laporan' && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-                
+
                 {/* Month Navigator bar */}
                 <div className="reports-header-nav">
                   <button className="month-nav-btn" onClick={() => changeMonth('prev')}>
                     <ChevronLeft size={16} />
                   </button>
-                  
+
                   <div className="month-label-container">
                     <span className="month-label-name">{INDO_MONTHS[selectedMonth]} {selectedYear}</span>
                     <span className="month-label-sub">MONTHLY OVERVIEW</span>
@@ -1475,54 +1777,54 @@ function App() {
                           <stop offset="100%" stopColor="#7C6FFF" stopOpacity="0" />
                         </linearGradient>
                       </defs>
-                      
+
                       {trendData.hasSpending ? (
                         <>
                           {/* Gradient background fill */}
-                          <path 
-                            d={trendData.fillPath} 
+                          <path
+                            d={trendData.fillPath}
                             fill="url(#chartLineGrad)"
                           />
-                          
+
                           {/* Wavy stroke line */}
-                          <path 
-                            d={trendData.linePath} 
-                            stroke="#7C6FFF" 
-                            strokeWidth="3.5" 
-                            fill="none" 
+                          <path
+                            d={trendData.linePath}
+                            stroke="#7C6FFF"
+                            strokeWidth="3.5"
+                            fill="none"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           />
 
                           {/* Max day highlight point */}
                           {trendData.maxPoint && (
-                            <circle 
-                              cx={trendData.maxPoint.x} 
-                              cy={trendData.maxPoint.y} 
-                              r="5" 
-                              fill="#7C6FFF" 
-                              stroke="#FFFFFF" 
-                              strokeWidth="1.5" 
+                            <circle
+                              cx={trendData.maxPoint.x}
+                              cy={trendData.maxPoint.y}
+                              r="5"
+                              fill="#7C6FFF"
+                              stroke="#FFFFFF"
+                              strokeWidth="1.5"
                             />
                           )}
                         </>
                       ) : (
                         <>
                           {/* Flat line when no spending */}
-                          <line 
-                            x1="10" 
-                            y1="110" 
-                            x2="362" 
-                            y2="110" 
-                            stroke="rgba(255,255,255,0.1)" 
-                            strokeWidth="2" 
-                            strokeDasharray="4 4" 
+                          <line
+                            x1="10"
+                            y1="110"
+                            x2="362"
+                            y2="110"
+                            stroke="rgba(255,255,255,0.1)"
+                            strokeWidth="2"
+                            strokeDasharray="4 4"
                           />
-                          <text 
-                            x="186" 
-                            y="65" 
-                            fill="var(--text-muted)" 
-                            fontSize="12" 
+                          <text
+                            x="186"
+                            y="65"
+                            fill="var(--text-muted)"
+                            fontSize="12"
                             textAnchor="middle"
                           >
                             Tidak ada data pengeluaran
@@ -1544,7 +1846,7 @@ function App() {
                       const isFood = cat.name.toLowerCase().includes('makan') || cat.name.toLowerCase().includes('food');
                       const isEssentials = cat.name.toLowerCase().includes('primer') || cat.name.toLowerCase().includes('essential') || cat.name.toLowerCase().includes('belanja');
                       const isHobby = cat.name.toLowerCase().includes('hobi') || cat.name.toLowerCase().includes('hobby') || cat.name.toLowerCase().includes('game');
-                      
+
                       const key = isFood ? 'Food' : isEssentials ? 'Essentials' : isHobby ? 'Hobby' : 'Other';
                       const count = stats.counts[key] || 0;
                       const sum = stats.categorySums[key] || 0;
@@ -1553,14 +1855,14 @@ function App() {
                       const isExpanded = expandedCategory === cat.id;
 
                       // Filter transactions of this category
-                      const catTransactions = periodTransactions.filter(tx => 
+                      const catTransactions = periodTransactions.filter(tx =>
                         tx.type === 'EXPENSE' && (tx.categoryObj?.id === cat.id || (!tx.categoryObj && cat.name === 'Lainnya'))
                       );
 
                       return (
                         <div key={cat.id} className="expandable-category-card">
-                          <div 
-                            className="top-cat-item" 
+                          <div
+                            className="top-cat-item"
                             style={{ cursor: 'pointer', borderBottom: 'none' }}
                             onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
                           >
@@ -1578,13 +1880,13 @@ function App() {
                                 <span className="top-cat-value">{formatRupiah(sum)}</span>
                                 <span className={`top-cat-badge ${isMomUp ? 'red' : 'green'}`}>{momStr} vs prev</span>
                               </div>
-                              <ChevronRight 
-                                size={16} 
-                                style={{ 
-                                  transform: isExpanded ? 'rotate(90deg)' : 'none', 
+                              <ChevronRight
+                                size={16}
+                                style={{
+                                  transform: isExpanded ? 'rotate(90deg)' : 'none',
                                   transition: 'transform 0.2s',
                                   color: 'var(--text-secondary)'
-                                }} 
+                                }}
                               />
                             </div>
                           </div>
@@ -1592,8 +1894,8 @@ function App() {
                           {isExpanded && (
                             <div className="category-expanded-list slide-down">
                               {catTransactions.map(tx => (
-                                <div 
-                                  key={tx.id} 
+                                <div
+                                  key={tx.id}
                                   className="category-expanded-item"
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1621,7 +1923,7 @@ function App() {
                 {/* Transaction History chronological grouped */}
                 <div className="history-section">
                   <span className="history-section-title">Transactions History</span>
-                  
+
                   {Object.keys(groupedTransactionsByDay).map(dateKey => {
                     const group = groupedTransactionsByDay[dateKey];
                     return (
@@ -1645,8 +1947,8 @@ function App() {
 
                         <div className="transactions-list">
                           {group.txs.map(tx => (
-                            <div 
-                              className="transaction-item" 
+                            <div
+                              className="transaction-item"
                               key={tx.id}
                               onClick={() => startEditing(tx)}
                               style={{ cursor: 'pointer' }}
@@ -1671,7 +1973,7 @@ function App() {
                       </div>
                     );
                   })}
-                  
+
                   {Object.keys(groupedTransactionsByDay).length === 0 && (
                     <div style={{ padding: '24px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
                       Tidak ada riwayat transaksi di bulan ini.
@@ -1679,6 +1981,62 @@ function App() {
                   )}
                 </div>
 
+                {paginationInfo && paginationInfo.totalPages > 1 && (
+                  <div className="pagination-container" style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '12px',
+                    marginTop: '20px',
+                    padding: '10px 0'
+                  }}>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: currentPage === 1 ? 'var(--text-muted)' : '#ffffff',
+                        borderRadius: '8px',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <ChevronLeft size={14} /> Prev
+                    </button>
+
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                      Page {paginationInfo.page} of {paginationInfo.totalPages}
+                    </span>
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, paginationInfo.totalPages))}
+                      disabled={currentPage === paginationInfo.totalPages}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        color: currentPage === paginationInfo.totalPages ? 'var(--text-muted)' : '#ffffff',
+                        borderRadius: '8px',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: currentPage === paginationInfo.totalPages ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      Next <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
 
               </div>
             )}
@@ -1686,7 +2044,7 @@ function App() {
             {/* 4. SETTINGS SCREEN */}
             {currentTab === 'settings' && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
-                
+
                 {/* Profile Card */}
                 <div className="profile-card">
                   <div className="profile-left">
@@ -1710,7 +2068,7 @@ function App() {
                 <div className="settings-section">
                   <span className="settings-section-title">Account</span>
                   <div className="settings-group">
-                    
+
                     {/* Notifications */}
                     <div className="settings-item">
                       <div className="settings-item-left">
@@ -1719,8 +2077,8 @@ function App() {
                       </div>
                       <div className="settings-item-right">
                         <label className="switch">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={notifEnabled}
                             onChange={(e) => setNotifEnabled(e.target.checked)}
                           />
@@ -1730,7 +2088,7 @@ function App() {
                     </div>
 
                     {/* Category management */}
-                    <div className="settings-item">
+                    <div className="settings-item" style={{ cursor: 'pointer' }} onClick={() => setShowCategoryPreviewModal(true)}>
                       <div className="settings-item-left">
                         <svg className="settings-item-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <rect x="3" y="3" width="7" height="9" rx="1" />
@@ -1746,7 +2104,7 @@ function App() {
                     </div>
 
                     {/* Export data */}
-                    <div className="settings-item">
+                    <div className="settings-item" style={{ cursor: 'pointer' }} onClick={handleExportCSV}>
                       <div className="settings-item-left">
                         <svg className="settings-item-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -1767,7 +2125,7 @@ function App() {
                 <div className="settings-section">
                   <span className="settings-section-title">Session</span>
                   <div className="settings-group">
-                    
+
                     {/* Logout button */}
                     <div className="settings-item logout-item" onClick={() => {
                       api.auth.logout();
@@ -1794,31 +2152,31 @@ function App() {
 
           {/* Tab Bar Navigation (Bottom Nav) */}
           <nav className="app-nav">
-            <button 
+            <button
               className={`nav-item ${currentTab === 'home' ? 'active' : ''}`}
               onClick={() => setCurrentTab('home')}
             >
               <House />
               <span>Home</span>
             </button>
-            
-            <button 
+
+            <button
               className={`nav-item ${currentTab === 'add' ? 'active' : ''}`}
               onClick={() => setCurrentTab('add')}
             >
               <PlusCircle />
               <span>Add</span>
             </button>
-            
-            <button 
+
+            <button
               className={`nav-item ${currentTab === 'laporan' ? 'active' : ''}`}
               onClick={() => setCurrentTab('laporan')}
             >
               <BarChart3 />
               <span>Laporan</span>
             </button>
-            
-            <button 
+
+            <button
               className={`nav-item ${currentTab === 'settings' ? 'active' : ''}`}
               onClick={() => setCurrentTab('settings')}
             >
@@ -1866,8 +2224,8 @@ function App() {
                   <div className="drag-handle"></div>
                   <div className="header-title-row">
                     <span className="modal-title">Edit Transaksi</span>
-                    <button 
-                      className="delete-btn-icon" 
+                    <button
+                      className="delete-btn-icon"
                       onClick={() => {
                         handleDeleteTransaction(editingTransaction.id);
                         setEditingTransaction(null);
@@ -1894,23 +2252,23 @@ function App() {
                   {/* Amount Display */}
                   <div className="edit-amount-display">
                     <span className="currency-symbol">Rp</span>
-                    <input 
-                      type="number" 
-                      className="edit-amount-input" 
-                      value={editAmountStr} 
-                      onChange={(e) => setEditAmountStr(e.target.value)} 
+                    <input
+                      type="number"
+                      className="edit-amount-input"
+                      value={editAmountStr}
+                      onChange={(e) => setEditAmountStr(e.target.value)}
                     />
                   </div>
 
                   {/* Transaction Type Select */}
                   <div className="edit-type-selector">
-                    <button 
+                    <button
                       className={`type-btn income ${editType === 'INCOME' ? 'active' : ''}`}
                       onClick={() => setEditType('INCOME')}
                     >
                       Pemasukan
                     </button>
-                    <button 
+                    <button
                       className={`type-btn expense ${editType === 'EXPENSE' ? 'active' : ''}`}
                       onClick={() => setEditType('EXPENSE')}
                     >
@@ -1921,11 +2279,11 @@ function App() {
                   {/* Note Input */}
                   <div className="edit-input-group">
                     <span className="input-label">Catatan</span>
-                    <input 
-                      type="text" 
-                      className="edit-text-input" 
-                      value={editNote} 
-                      onChange={(e) => setEditNote(e.target.value)} 
+                    <input
+                      type="text"
+                      className="edit-text-input"
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
                       placeholder="Masukkan catatan..."
                     />
                   </div>
@@ -1933,11 +2291,11 @@ function App() {
                   {/* Date Input */}
                   <div className="edit-input-group">
                     <span className="input-label">Tanggal</span>
-                    <input 
-                      type="date" 
-                      className="edit-text-input" 
-                      value={editDate} 
-                      onChange={(e) => setEditDate(e.target.value)} 
+                    <input
+                      type="date"
+                      className="edit-text-input"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
                     />
                   </div>
 
@@ -1945,9 +2303,9 @@ function App() {
                   {editType === 'EXPENSE' && (
                     <div className="edit-input-group">
                       <span className="input-label">Kategori</span>
-                      <select 
-                        className="edit-select-input" 
-                        value={editCategory} 
+                      <select
+                        className="edit-select-input"
+                        value={editCategory}
                         onChange={(e) => setEditCategory(e.target.value)}
                       >
                         <option value="">-- Pilih Kategori --</option>
@@ -1962,6 +2320,60 @@ function App() {
                   <div className="modal-actions-row">
                     <button className="cancel-btn" onClick={() => setEditingTransaction(null)}>Batal</button>
                     <button className="save-btn" onClick={handleUpdateTransaction}>Simpan</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Category Preview Modal */}
+          {showCategoryPreviewModal && (
+            <div className="edit-modal-overlay" onClick={() => setShowCategoryPreviewModal(false)}>
+              <div className="edit-modal-container slide-up" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '70vh' }}>
+                <div className="edit-modal-header">
+                  <div className="drag-handle"></div>
+                  <div className="header-title-row">
+                    <span className="modal-title">Daftar Kategori</span>
+                    <button className="cancel-btn" onClick={() => setShowCategoryPreviewModal(false)} style={{ border: 'none', background: 'none', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>Tutup</button>
+                  </div>
+                </div>
+
+                <div className="edit-modal-body" style={{ overflowY: 'auto', maxHeight: 'calc(70vh - 120px)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.4' }}>
+                    Daftar kategori transaksi aktif untuk akun Anda. Kategori default tidak dapat diubah.
+                  </p>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {categories.map(cat => (
+                      <div key={cat.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px 16px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        borderRadius: '12px'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '10px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: cat.color || 'var(--primary)'
+                          }}>
+                            {getIcon(cat.name, '')}
+                          </div>
+                          <span style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>{cat.name}</span>
+                        </div>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '4px 8px', borderRadius: '6px' }}>
+                          Bawaan
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
