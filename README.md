@@ -1,32 +1,66 @@
-# React + TypeScript + Vite
+# Dompetrack
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Dompetrack is a personal finance and expense tracker web application designed for fast manual input, visual budget tracking, and intelligent spending analysis.
 
-Currently, two official plugins are available:
+This repository contains the base version of the project. Further updates and features will be released soon.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Overview
 
-## React Compiler
+The application is built to help users manage their personal budget with clarity and efficiency. Rather than relying on automatic categorizations or complex integrations, it prioritizes rapid manual entry (taking less than 10 seconds per transaction) and provides actionable insights on spending habits.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Architecture and Key Features
 
-## Expanding the Oxlint configuration
+### 1. Frontend Web Client
+The user interface is built as a Progressive Web App (PWA) using React, TypeScript, and Vite. The UI is designed with a premium, dark-themed aesthetic and features four main sections:
+- **Home / Dashboard**: Displays the hero balance card (total income, total expense, remaining budget, and allowance usage), category breakdowns, recent transaction lists, and AI insights.
+- **Add Transaction**: A quick-entry form with a toggle for income/expense, numeric input, category chips, notes, and a date selector.
+- **Reports**: Visualizes daily transaction trends using interactive charts, month-over-month comparisons, and searchable/filterable lists of past records.
+- **Settings**: Allows profile viewing, logout functionality, and category list verification.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+### 2. Backend API Service
+The backend application is built using NestJS, Prisma ORM, and PostgreSQL. It manages core resources and enforces robust business logic:
+- **Authentication**: Secure registration, login, and token-based authorization.
+- **Transactions & Categories**: Management of user-specific transactions and customizable/default categories.
+- **AI Insights Service**: Integrates with the Google Gemini API to analyze monthly spending aggregated by category and transactions. It generates personalized recommendations for correcting inefficient financial behaviors.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+## Technology Stack
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+- **Frontend**: React, TypeScript, Vite, Vanilla CSS.
+- **Backend**: NestJS, Prisma Client, PostgreSQL.
+- **AI Integration**: Google Gemini API.
+
+## Getting Started
+
+### Backend Setup
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Configure environment variables in a `.env` file (e.g. database URL, JWT secrets, Gemini API key).
+4. Run migrations and seeds:
+   ```bash
+   npx prisma migrate dev
+   npx prisma db seed
+   ```
+5. Start the development server:
+   ```bash
+   npm run start:dev
+   ```
+
+### Frontend Setup
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
