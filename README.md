@@ -1,5 +1,7 @@
 # Dompetrack
 
+<img width="1920" height="1080" alt="mockupDompetrack" src="https://github.com/user-attachments/assets/e7065023-aef9-4528-93e0-67e231b8ca4f" />
+
 Dompetrack is a personal finance and expense tracker web application designed for fast manual input, visual budget tracking, and intelligent spending analysis.
 
 This repository contains the base version of the project. Further updates and features will be released soon.
