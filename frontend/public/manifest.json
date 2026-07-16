@@ -1,0 +1,31 @@
+{
+  "short_name": "Dompetrack",
+  "name": "Dompetrack",
+  "description": "Personal Expense Tracker for Smart Financial Habits",
+  "icons": [
+    {
+      "src": "/Dompetrack.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/Dompetrack.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/Dompetrack.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0A0A0F",
+  "display": "standalone",
+  "scope": "/",
+  "theme_color": "#0A0A0F",
+  "orientation": "portrait"
+}
