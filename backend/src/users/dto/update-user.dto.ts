@@ -3,10 +3,10 @@ import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
-  @MinLength(1, { message: 'Nama tidak boleh kosong' })
+  @MinLength(1, { message: 'Name is required' })
   name?: string;
 
   @IsOptional()
-  @IsEmail({}, { message: 'Format email tidak valid' })
+  @IsEmail({}, { message: 'Invalid email format' })
   email?: string;
 }

@@ -34,7 +34,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email sudah terdaftar');
+      throw new ConflictException('Email is already registered');
     }
 
     // Hash password — NEVER store plaintext passwords
@@ -53,28 +53,28 @@ export class AuthService {
     await this.prisma.category.createMany({
       data: [
         {
-          name: 'Makanan',
+          name: 'Food',
           icon: '🍔',
           color: '#FF6B6B',
           isDefault: true,
           userId: user.id,
         },
         {
-          name: 'Primer',
+          name: 'Essentials',
           icon: '🏠',
           color: '#4ECDC4',
           isDefault: true,
           userId: user.id,
         },
         {
-          name: 'Hobi',
+          name: 'Hobby',
           icon: '🎮',
           color: '#45B7D1',
           isDefault: true,
           userId: user.id,
         },
         {
-          name: 'Lainnya',
+          name: 'Other',
           icon: '📦',
           color: '#96CEB4',
           isDefault: true,
@@ -104,12 +104,12 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('Email atau password salah');
+      throw new UnauthorizedException('Incorrect email or password');
     }
 
     const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordMatch) {
-      throw new UnauthorizedException('Email atau password salah');
+      throw new UnauthorizedException('Incorrect email or password');
     }
 
     const tokens = await this.generateTokens(user.id, user.email);

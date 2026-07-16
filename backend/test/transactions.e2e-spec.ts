@@ -156,7 +156,7 @@ describe('Transactions (e2e)', () => {
         .expect(200);
 
       expect(res.body.success).toBe(true);
-      expect(res.body.data.message).toBe('Transaksi berhasil dihapus');
+      expect(res.body.data.message).toBe('Transaction successfully deleted');
     });
   });
 });

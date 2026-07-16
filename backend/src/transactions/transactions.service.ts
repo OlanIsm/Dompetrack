@@ -31,7 +31,7 @@ export class TransactionsService {
    */
   async create(userId: string, dto: CreateTransactionDto) {
     if (dto.type === TransactionTypeDto.EXPENSE && !dto.categoryId) {
-      throw new BadRequestException('Kategori wajib dipilih untuk pengeluaran');
+      throw new BadRequestException('Category is required for expenses');
     }
 
     if (dto.categoryId) {
@@ -41,7 +41,7 @@ export class TransactionsService {
       });
 
       if (!category) {
-        throw new NotFoundException('Kategori tidak ditemukan');
+        throw new NotFoundException('Category not found');
       }
     }
 
@@ -160,18 +160,18 @@ export class TransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Transaksi tidak ditemukan');
+      throw new NotFoundException('Transaction not found');
     }
 
     if (transaction.userId !== userId) {
-      throw new ForbiddenException('Tidak berhak menghapus transaksi ini');
+      throw new ForbiddenException('Unauthorized to delete this transaction');
     }
 
     await this.prisma.transaction.delete({
       where: { id: transactionId },
     });
 
-    return { message: 'Transaksi berhasil dihapus' };
+    return { message: 'Transaction successfully deleted' };
   }
 
   /**
@@ -187,11 +187,11 @@ export class TransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Transaksi tidak ditemukan');
+      throw new NotFoundException('Transaction not found');
     }
 
     if (transaction.userId !== userId) {
-      throw new ForbiddenException('Tidak berhak mengubah transaksi ini');
+      throw new ForbiddenException('Unauthorized to modify this transaction');
     }
 
     if (
@@ -199,7 +199,7 @@ export class TransactionsService {
       !dto.categoryId &&
       !transaction.categoryId
     ) {
-      throw new BadRequestException('Kategori wajib dipilih untuk pengeluaran');
+      throw new BadRequestException('Category is required for expenses');
     }
 
     if (dto.categoryId) {
@@ -209,7 +209,7 @@ export class TransactionsService {
       });
 
       if (!category) {
-        throw new NotFoundException('Kategori tidak ditemukan');
+        throw new NotFoundException('Category not found');
       }
     }
 
@@ -267,7 +267,7 @@ export class TransactionsService {
         income += amount;
       } else {
         expense += amount;
-        const catName = tx.category?.name || 'Lainnya';
+        const catName = tx.category?.name || 'Other';
         categoryExpenses[catName] = (categoryExpenses[catName] || 0) + amount;
       }
     });
@@ -288,23 +288,23 @@ export class TransactionsService {
       try {
         const txList = txs
           .map((tx) => {
-            return `- ${tx.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'}: ${formatRupiah(Number(tx.amount))} - ${tx.description || tx.category?.name || ''} (${tx.date.toISOString().split('T')[0]})`;
+            return `- ${tx.type === 'INCOME' ? 'Income' : 'Expense'}: ${formatRupiah(Number(tx.amount))} - ${tx.description || tx.category?.name || ''} (${tx.date.toISOString().split('T')[0]})`;
           })
           .join('\n');
 
-        const prompt = `Anda adalah Dompetrack AI, asisten keuangan pribadi yang cerdas.
-Analisis data keuangan pengguna bulan ini:
-- Total Pemasukan: ${formatRupiah(income)}
-- Total Pengeluaran: ${formatRupiah(expense)}
-- Sisa Saldo: ${formatRupiah(balance)}
-- Daftar Transaksi:
-${txList || '(Belum ada transaksi)'}
+        const prompt = `You are Dompetrack AI, a smart personal finance assistant.
+Analyze the user's financial data for this month:
+- Total Income: ${formatRupiah(income)}
+- Total Expense: ${formatRupiah(expense)}
+- Remaining Balance: ${formatRupiah(balance)}
+- Transaction List:
+${txList || '(No transactions)'}
 
-Tulis analisis keuangan singkat dalam Bahasa Indonesia. 
-Ketentuannya:
-1. Maksimal 1-2 kalimat saja, sangat singkat dan to-the-point untuk dimuat di kartu informasi kecil.
-2. Harus logis, ramah, dan solutif. Jangan gunakan bullet points atau format markdown tebal (* atau **), berikan paragraf teks biasa saja.
-3. Sebutkan satu hal positif atau peringatan spesifik jika pengeluaran terlalu besar dibanding pemasukan.`;
+Write a short financial analysis in English.
+Requirements:
+1. Max 1-2 sentences only, very concise and to-the-point to fit on a small info card.
+2. Must be logical, friendly, and helpful. Do not use bullet points or bold markdown (* or **), provide plain text paragraph only.
+3. Mention one positive highlight or a specific warning if expenses are too high compared to income.`;
 
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
@@ -345,19 +345,19 @@ Ketentuannya:
     if (txs.length === 0) {
       return {
         insight:
-          'Belum ada transaksi di periode ini. Yuk, mulai catat pemasukan atau pengeluaran Anda untuk mendapatkan analisis keuangan pintar!',
+          'No transactions in this period. Start recording your income or expenses to get smart AI financial insights!',
       };
     }
 
     if (expense === 0) {
       return {
-        insight: `Luar biasa! Anda belum mencatat pengeluaran bulan ini. Saldo Anda saat ini aman di angka ${formatRupiah(balance)}.`,
+        insight: `Excellent! You haven't recorded any expenses this month. Your balance is currently safe at ${formatRupiah(balance)}.`,
       };
     }
 
     if (expense > income && income > 0) {
       return {
-        insight: `Waspada! Pengeluaran Anda (${formatRupiah(expense)}) melebihi pemasukan (${formatRupiah(income)}) sebesar ${formatRupiah(expense - income)}. Sebaiknya kurangi belanja non-primer.`,
+        insight: `Warning! Your expenses (${formatRupiah(expense)}) exceed your income (${formatRupiah(income)}) by ${formatRupiah(expense - income)}. Consider reducing non-essential spending.`,
       };
     }
 
@@ -373,12 +373,12 @@ Ketentuannya:
 
     if (maxCat) {
       return {
-        insight: `Pengeluaran terbesar Anda adalah untuk ${maxCat} sebesar ${formatRupiah(maxVal)}. Mengontrol kategori ini akan membantu menaikkan tabungan Anda bulan ini.`,
+        insight: `Your largest expense is on ${maxCat} at ${formatRupiah(maxVal)}. Controlling this category will help boost your savings this month.`,
       };
     }
 
     return {
-      insight: `Keuangan Anda bulan ini terpantau sehat dengan sisa saldo ${formatRupiah(balance)}. Pertahankan pencatatan rutin Anda!`,
+      insight: `Your finance this month looks healthy with a remaining balance of ${formatRupiah(balance)}. Keep up the routine recording!`,
     };
   }
 

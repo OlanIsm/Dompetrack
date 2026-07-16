@@ -240,7 +240,7 @@ describe('TransactionsService', () => {
       expect(prisma.transaction.delete).toHaveBeenCalledWith({
         where: { id: 'tx-123' },
       });
-      expect(result).toEqual({ message: 'Transaksi berhasil dihapus' });
+      expect(result).toEqual({ message: 'Transaction successfully deleted' });
     });
 
     it('should throw ForbiddenException if user does not own transaction to delete', async () => {
@@ -270,7 +270,7 @@ describe('TransactionsService', () => {
 
       const result = await service.getAiInsight('user-123', {});
 
-      expect(result.insight).toContain('tabungan Anda bulan ini');
+      expect(result.insight).toContain('savings this month');
     });
 
     it('should call Gemini API if key is present and return insight', async () => {
@@ -318,7 +318,7 @@ describe('TransactionsService', () => {
 
       const result = await service.getAiInsight('user-123', {});
 
-      expect(result.insight).toContain('tabungan Anda bulan ini');
+      expect(result.insight).toContain('savings this month');
     });
   });
 });

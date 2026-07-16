@@ -50,14 +50,14 @@ interface Transaction {
   rawDate?: string;
 }
 
-// Indonesian month names helper
-const INDO_MONTHS = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+// English month names helper
+const ENG_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-const INDO_DAYS = [
-  'Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'
+const ENG_DAYS = [
+  'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 ];
 
 // Initial mock transactions removed for full Supabase dynamic integration
@@ -111,14 +111,14 @@ function App() {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const dateStr = `${yyyy}-${mm}-${dd}`;
-    const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':');
+    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
     return {
       id: tx.id,
       type: tx.type,
       amount: tx.amount,
       category: tx.category?.name || 'Other',
-      note: tx.description || (tx.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'),
+      note: tx.description || (tx.type === 'INCOME' ? 'Income' : 'Expense'),
       date: dateStr,
       time: timeStr,
       categoryObj: tx.category,
@@ -163,7 +163,7 @@ function App() {
       const formattedPrev = prevTxsResponse.transactions.map(formatTxForFrontend);
       setPrevMonthTransactions(formattedPrev);
     } catch (err) {
-      console.error("Gagal mengambil data dari API:", err);
+      console.error("Failed to fetch data from API:", err);
     } finally {
       setIsLoading(false);
     }
@@ -172,7 +172,7 @@ function App() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authEmail || !authPassword) {
-      setAuthError('Email dan password harus diisi');
+      setAuthError('Email and password are required');
       return;
     }
     setIsLoading(true);
@@ -183,7 +183,7 @@ function App() {
       setAuthEmail('');
       setAuthPassword('');
     } catch (err: any) {
-      setAuthError(err.message || 'Email atau password salah');
+      setAuthError(err.message || 'Incorrect email or password');
     } finally {
       setIsLoading(false);
     }
@@ -192,19 +192,19 @@ function App() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authName || !authEmail || !authPassword || !authConfirmPassword) {
-      setAuthError('Semua field wajib diisi');
+      setAuthError('All fields are required');
       return;
     }
     if (authPassword !== authConfirmPassword) {
-      setAuthError('Konfirmasi password tidak cocok');
+      setAuthError('Confirm password does not match');
       return;
     }
     if (authPassword.length < 6) {
-      setAuthError('Password minimal 6 karakter');
+      setAuthError('Password must be at least 6 characters');
       return;
     }
     if (!agreeTerms) {
-      setAuthError('Anda harus menyetujui Syarat & Ketentuan');
+      setAuthError('You must agree to the Terms & Conditions');
       return;
     }
     setIsLoading(true);
@@ -218,7 +218,7 @@ function App() {
       setAuthConfirmPassword('');
       setAgreeTerms(false);
     } catch (err: any) {
-      setAuthError(err.message || 'Registrasi gagal, silakan coba lagi');
+      setAuthError(err.message || 'Registration failed, please try again');
     } finally {
       setIsLoading(false);
     }
@@ -252,7 +252,7 @@ function App() {
   const fetchAiInsight = async () => {
     if (!currentUser) return;
     if (!aiConsent) {
-      setAiInsight("AI Insight dinonaktifkan. Silakan aktifkan persetujuan pemrosesan AI di atas atau melalui Pengaturan.");
+      setAiInsight("AI Insight is disabled. Please enable AI processing consent above or in Settings.");
       return;
     }
     setAiLoading(true);
@@ -263,8 +263,8 @@ function App() {
       );
       setAiInsight(res.insight);
     } catch (err) {
-      console.error("Gagal mengambil AI Insight:", err);
-      setAiInsight("Gagal memuat saran AI. Pastikan server aktif.");
+      console.error("Failed to fetch AI Insight:", err);
+      setAiInsight("Failed to load AI suggestions. Make sure the server is running.");
     } finally {
       setAiLoading(false);
     }
@@ -300,7 +300,7 @@ function App() {
       const txs = res.transactions;
 
       if (!txs || txs.length === 0) {
-        alert('Tidak ada transaksi untuk diekspor');
+        alert('No transactions to export');
         return;
       }
 
@@ -337,8 +337,8 @@ function App() {
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      console.error('Gagal mengekspor data:', err);
-      alert('Gagal mengekspor data transaksi');
+      console.error('Failed to export data:', err);
+      alert('Failed to export transaction data');
     } finally {
       setIsLoading(false);
     }
@@ -703,7 +703,7 @@ function App() {
     setIsLoading(true);
     try {
       if (txType === 'EXPENSE' && !txCategory) {
-        throw new Error('Kategori wajib dipilih untuk pengeluaran');
+        throw new Error('Category is required for expenses');
       }
 
       const today = new Date();
@@ -713,7 +713,7 @@ function App() {
       await api.transactions.create({
         type: txType,
         amount: amountVal,
-        description: txNote.trim() || (txType === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'),
+        description: txNote.trim() || (txType === 'INCOME' ? 'Income' : 'Expense'),
         categoryId: txType === 'EXPENSE' ? txCategory : undefined,
         date: combinedDate.toISOString(),
       });
@@ -732,7 +732,7 @@ function App() {
         setCurrentTab('home');
       }, 1800);
     } catch (err: any) {
-      alert('Gagal menyimpan transaksi: ' + err.message);
+      alert('Failed to save transaction: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -740,13 +740,13 @@ function App() {
 
   // Delete Transaction
   const handleDeleteTransaction = async (id: string) => {
-    if (!window.confirm('Hapus transaksi ini?')) return;
+    if (!window.confirm('Delete this transaction?')) return;
     setIsLoading(true);
     try {
       await api.transactions.delete(id);
       await fetchData();
     } catch (err: any) {
-      alert('Gagal menghapus transaksi: ' + err.message);
+      alert('Failed to delete transaction: ' + err.message);
     } finally {
       setIsLoading(false);
     }
@@ -769,7 +769,7 @@ function App() {
     setIsLoading(true);
     try {
       if (editType === 'EXPENSE' && !editCategory) {
-        throw new Error('Kategori wajib dipilih untuk pengeluaran');
+        throw new Error('Category is required for expenses');
       }
 
       const today = new Date();
@@ -791,7 +791,7 @@ function App() {
       await api.transactions.update(editingTransaction.id, {
         type: editType,
         amount: amountVal,
-        description: editNote.trim() || (editType === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'),
+        description: editNote.trim() || (editType === 'INCOME' ? 'Income' : 'Expense'),
         categoryId: editType === 'EXPENSE' ? editCategory : undefined,
         date: combinedDate.toISOString(),
       });
@@ -799,17 +799,17 @@ function App() {
       await fetchData();
       setEditingTransaction(null);
     } catch (err: any) {
-      alert('Gagal memperbarui transaksi: ' + err.message);
+      alert('Failed to update transaction: ' + err.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Format date helper for Group headers (e.g. "TODAY, 14 JULI")
+  // Format date helper for Group headers (e.g. "TODAY, 14 JULY")
   const formatGroupHeaderDate = (dateStr: string) => {
     const dateObj = new Date(dateStr);
     const day = dateObj.getDate();
-    const month = INDO_MONTHS[dateObj.getMonth()].toUpperCase();
+    const month = ENG_MONTHS[dateObj.getMonth()].toUpperCase();
 
     // Check if it matches today or yesterday
     const today = new Date();
@@ -828,24 +828,24 @@ function App() {
     }
 
     // Default formatting
-    const dayOfWeek = INDO_DAYS[dateObj.getDay()].toUpperCase();
+    const dayOfWeek = ENG_DAYS[dateObj.getDay()].toUpperCase();
     return `${dayOfWeek}, ${day} ${month}`;
   };
 
-  // Format date helper for Home Screen Header ("Kamis, 24 Oktober 2024")
+  // Format date helper for Home Screen Header ("Thursday, 24 October 2024")
   const formatGreetingDate = () => {
     const today = new Date();
     if (selectedMonth === today.getMonth() && selectedYear === today.getFullYear()) {
-      const dayName = INDO_DAYS[today.getDay()];
-      const monthName = INDO_MONTHS[today.getMonth()];
+      const dayName = ENG_DAYS[today.getDay()];
+      const monthName = ENG_MONTHS[today.getMonth()];
       return `${dayName}, ${today.getDate()} ${monthName} ${today.getFullYear()}`;
     }
     // If selected period is Oct 2024, show screenshot date
     if (selectedMonth === 9 && selectedYear === 2024) {
-      return 'Kamis, 24 Oktober 2024';
+      return 'Thursday, 24 October 2024';
     }
     // Otherwise show selected month/year base
-    return `${INDO_DAYS[4]}, 14 ${INDO_MONTHS[selectedMonth]} ${selectedYear}`;
+    return `${ENG_DAYS[4]}, 14 ${ENG_MONTHS[selectedMonth]} ${selectedYear}`;
   };
 
   return (
@@ -864,8 +864,8 @@ function App() {
                   <div className="auth-logo-container" style={{ background: 'none' }}>
                     <img src="/Dompetrack.png" alt="Dompetrack Logo" className="auth-logo" />
                   </div>
-                  <h1 className="auth-title">Selamat Datang</h1>
-                  <p className="auth-subtitle">Silakan masuk untuk mulai mengelola keuangan Anda secara cerdas</p>
+                  <h1 className="auth-title">Welcome Back</h1>
+                  <p className="auth-subtitle">Please log in to start managing your finance smartly</p>
                 </div>
 
                 <form className="auth-form" onSubmit={handleLogin}>
@@ -878,7 +878,7 @@ function App() {
                       <input
                         type="email"
                         className="auth-input"
-                        placeholder="contoh@email.com"
+                        placeholder="example@email.com"
                         value={authEmail}
                         onChange={(e) => setAuthEmail(e.target.value)}
                         required
@@ -918,18 +918,18 @@ function App() {
                       setAuthError('');
                     }}
                   >
-                    Lupa Password?
+                    Forgot Password?
                   </a>
 
                   <button type="submit" className="auth-btn">
-                    Masuk ke Akun
+                    Log In
                   </button>
                 </form>
 
                 <div className="auth-footer">
-                  Belum punya akun?{' '}
+                  Don't have an account?{' '}
                   <button className="auth-footer-link" onClick={() => { setAuthScreen('signup'); setAuthError(''); setAuthEmail(''); setAuthPassword(''); }}>
-                    Daftar Sekarang
+                    Sign Up Now
                   </button>
                 </div>
               </div>
@@ -940,21 +940,21 @@ function App() {
                   <div className="auth-logo-container" style={{ background: 'none' }}>
                     <img src="/Dompetrack.png" alt="Dompetrack Logo" className="auth-logo" />
                   </div>
-                  <h1 className="auth-title">Buat Akun</h1>
-                  <p className="auth-subtitle">Kelola pengeluaran harian dan bulanan dengan lebih presisi</p>
+                  <h1 className="auth-title">Create Account</h1>
+                  <p className="auth-subtitle">Manage your daily and monthly expenses with more precision</p>
                 </div>
 
                 <form className="auth-form" onSubmit={handleSignUp}>
                   {authError && <div className="auth-error">{authError}</div>}
 
                   <div className="auth-input-group">
-                    <label className="auth-input-label">NAMA LENGKAP</label>
+                    <label className="auth-input-label">FULL NAME</label>
                     <div className="auth-input-wrapper">
                       <User className="auth-input-icon" size={16} />
                       <input
                         type="text"
                         className="auth-input"
-                        placeholder="Nama Anda"
+                        placeholder="Your Name"
                         value={authName}
                         onChange={(e) => setAuthName(e.target.value)}
                         required
@@ -969,7 +969,7 @@ function App() {
                       <input
                         type="email"
                         className="auth-input"
-                        placeholder="contoh@email.com"
+                        placeholder="example@email.com"
                         value={authEmail}
                         onChange={(e) => setAuthEmail(e.target.value)}
                         required
@@ -984,7 +984,7 @@ function App() {
                       <input
                         type={showPassword ? "text" : "password"}
                         className="auth-input"
-                        placeholder="Minimal 6 karakter"
+                        placeholder="Min. 6 characters"
                         value={authPassword}
                         onChange={(e) => setAuthPassword(e.target.value)}
                         required
@@ -1000,13 +1000,13 @@ function App() {
                   </div>
 
                   <div className="auth-input-group">
-                    <label className="auth-input-label">KONFIRMASI PASSWORD</label>
+                    <label className="auth-input-label">CONFIRM PASSWORD</label>
                     <div className="auth-input-wrapper">
                       <Lock className="auth-input-icon" size={16} />
                       <input
                         type={showPassword ? "text" : "password"}
                         className="auth-input"
-                        placeholder="Ulangi password"
+                        placeholder="Repeat password"
                         value={authConfirmPassword}
                         onChange={(e) => setAuthConfirmPassword(e.target.value)}
                         required
@@ -1023,19 +1023,19 @@ function App() {
                       onChange={(e) => setAgreeTerms(e.target.checked)}
                     />
                     <label htmlFor="terms-checkbox" className="auth-checkbox-label">
-                      Saya menyetujui Syarat & Ketentuan serta Kebijakan Privasi Dompetrack
+                      I agree to the Terms & Conditions and Privacy Policy of Dompetrack
                     </label>
                   </div>
 
                   <button type="submit" className="auth-btn">
-                    Daftar Akun Baru
+                    Sign Up
                   </button>
                 </form>
 
                 <div className="auth-footer">
-                  Sudah punya akun?{' '}
+                  Already have an account?{' '}
                   <button className="auth-footer-link" onClick={() => { setAuthScreen('login'); setAuthError(''); setAuthEmail(''); setAuthPassword(''); }}>
-                    Masuk Di Sini
+                    Log In Here
                   </button>
                 </div>
               </div>
@@ -1046,8 +1046,8 @@ function App() {
                   <div className="auth-logo-container" style={{ background: 'none' }}>
                     <img src="/Dompetrack.png" alt="Dompetrack Logo" className="auth-logo" />
                   </div>
-                  <h1 className="auth-title">Pulihkan Kata Sandi</h1>
-                  <p className="auth-subtitle">Masukkan alamat email terdaftar Anda untuk memulihkan akses akun</p>
+                  <h1 className="auth-title">Reset Password</h1>
+                  <p className="auth-subtitle">Enter your registered email address to recover your account access</p>
                 </div>
 
                 {forgotEmailSent ? (
@@ -1061,10 +1061,10 @@ function App() {
                     animation: 'fadeIn 0.3s ease-out'
                   }}>
                     <div style={{ color: '#10B981', fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>
-                      Permintaan Terkirim
+                      Request Sent
                     </div>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.4', margin: 0 }}>
-                      Instruksi pemulihan telah dikirim ke email Anda. Silakan hubungi administrator sistem jika Anda tidak menerima email tersebut.
+                      Recovery instructions have been sent to your email. Please contact the system administrator if you do not receive the email.
                     </p>
                   </div>
                 ) : (
@@ -1073,7 +1073,7 @@ function App() {
                     onSubmit={(e) => {
                       e.preventDefault();
                       if (!authEmail) {
-                        setAuthError('Email wajib diisi');
+                        setAuthError('Email is required');
                         return;
                       }
                       setForgotEmailSent(true);
@@ -1089,7 +1089,7 @@ function App() {
                         <input
                           type="email"
                           className="auth-input"
-                          placeholder="contoh@email.com"
+                          placeholder="example@email.com"
                           value={authEmail}
                           onChange={(e) => setAuthEmail(e.target.value)}
                           required
@@ -1098,15 +1098,15 @@ function App() {
                     </div>
 
                     <button type="submit" className="auth-btn">
-                      Kirim Tautan Pemulihan
+                      Send Recovery Link
                     </button>
                   </form>
                 )}
 
                 <div className="auth-footer">
-                  Sudah ingat kata sandi?{' '}
+                  Remember your password?{' '}
                   <button className="auth-footer-link" onClick={() => { setAuthScreen('login'); setAuthError(''); setAuthEmail(''); setForgotEmailSent(false); }}>
-                    Masuk Di Sini
+                    Log In Here
                   </button>
                 </div>
               </div>
@@ -1151,7 +1151,7 @@ function App() {
                 <div className="success-circle">
                   <Check size={40} strokeWidth={3} className="success-check-icon" />
                 </div>
-                <p className="success-text">Transaksi Disimpan!</p>
+                <p className="success-text">Transaction Saved!</p>
               </div>
             </div>
           )}
@@ -1171,15 +1171,15 @@ function App() {
               boxShadow: '0 12px 30px rgba(0,0,0,0.5)'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700 }}>Pemberitahuan</span>
-                <button style={{ fontSize: '11px', color: 'var(--primary)' }} onClick={() => setShowNotifications(false)}>Tutup</button>
+                <span style={{ fontSize: '13px', fontWeight: 700 }}>Notifications</span>
+                <button style={{ fontSize: '11px', color: 'var(--primary)' }} onClick={() => setShowNotifications(false)}>Close</button>
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
-                  <strong>AI Analisis Baru:</strong> {aiLoading ? "Menganalisis..." : (aiInsight || "Belum ada analisis baru.")}
+                  <strong>New AI Analysis:</strong> {aiLoading ? "Analyzing..." : (aiInsight || "No new analysis yet.")}
                 </div>
                 <div>
-                  <strong>Sistem:</strong> Pengingat harian aktif. Jangan lupa mencatat transaksi hari ini!
+                  <strong>System:</strong> Daily reminder active. Don't forget to record your transactions today!
                 </div>
               </div>
             </div>
@@ -1194,7 +1194,7 @@ function App() {
                 {/* Greeting Section & Period Toggle */}
                 <div className="greeting-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <div>
-                    <div className="greeting-title">Halo, {currentUser?.name || 'Olan'}</div>
+                    <div className="greeting-title">Hello, {currentUser?.name || 'Olan'}</div>
                     <div className="greeting-date">{formatGreetingDate()}</div>
                   </div>
 
@@ -1220,7 +1220,7 @@ function App() {
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      Bulan Ini
+                      This Month
                     </button>
                     <button
                       className={`filter-toggle-btn ${filterType === 'all' ? 'active' : ''}`}
@@ -1237,7 +1237,7 @@ function App() {
                         transition: 'all 0.2s ease'
                       }}
                     >
-                      Semua
+                      All
                     </button>
                   </div>
                 </div>
@@ -1250,7 +1250,7 @@ function App() {
                     boxShadow: cardTheme.boxShadow
                   }}
                 >
-                  <div className="balance-label">BALANCE SISA</div>
+                  <div className="balance-label">REMAINING BALANCE</div>
                   <div className="balance-amount">{formatRupiah(stats.balance)}</div>
 
                   <div className="income-expense-row">
@@ -1308,9 +1308,9 @@ function App() {
                     }}>
                       <TrendingUp size={32} />
                     </div>
-                    <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Belum Ada Transaksi</h3>
+                    <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>No Transactions Yet</h3>
                     <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, maxWidth: '240px', lineHeight: '1.5' }}>
-                      Catatan keuangan Anda masih kosong. Mulai catat untuk melacak arus kas Anda.
+                      Your financial records are empty. Start recording to track your cash flow.
                     </p>
                     <div className="empty-state-actions" style={{ display: 'flex', gap: '12px', width: '100%', marginTop: '8px' }}>
                       <button
@@ -1328,7 +1328,7 @@ function App() {
                            transition: 'all 0.2s ease'
                         }}
                       >
-                        + Pemasukan
+                        + Income
                       </button>
                       <button
                         onClick={() => { setTxType('EXPENSE'); setCurrentTab('add'); }}
@@ -1345,16 +1345,16 @@ function App() {
                            transition: 'all 0.2s ease'
                         }}
                       >
-                        + Pengeluaran
+                        + Expense
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
-                    {/* Alokasi Dana Section */}
+                    {/* Allocation Section */}
                     <div className="section-container" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <div className="section-header">
-                        <span className="section-title">Alokasi Dana</span>
+                        <span className="section-title">Fund Allocation</span>
                         <span className="section-link" onClick={() => setCurrentTab('laporan')}>
                           <ChevronRight size={16} />
                         </span>
@@ -1371,19 +1371,19 @@ function App() {
                         <div className="alloc-legend">
                           <div className="legend-item">
                             <div className="dot" style={{ backgroundColor: '#7C6FFF' }}></div>
-                            <span>Makanan ({stats.categoryPercents.Food}%)</span>
+                            <span>Food ({stats.categoryPercents.Food}%)</span>
                           </div>
                           <div className="legend-item">
                             <div className="dot" style={{ backgroundColor: '#a49cff' }}></div>
-                            <span>Primer ({stats.categoryPercents.Essentials}%)</span>
+                            <span>Essentials ({stats.categoryPercents.Essentials}%)</span>
                           </div>
                           <div className="legend-item">
                             <div className="dot" style={{ backgroundColor: '#FBBF24' }}></div>
-                            <span>Hobi ({stats.categoryPercents.Hobby}%)</span>
+                            <span>Hobby ({stats.categoryPercents.Hobby}%)</span>
                           </div>
                           <div className="legend-item">
                             <div className="dot" style={{ backgroundColor: '#5C5C6E' }}></div>
-                            <span>Lainnya ({stats.categoryPercents.Other}%)</span>
+                            <span>Others ({stats.categoryPercents.Other}%)</span>
                           </div>
                         </div>
                       </div>
@@ -1443,9 +1443,9 @@ function App() {
                           </div>
                           <p className="ai-text">
                             {aiLoading ? (
-                              <span style={{ opacity: 0.6 }}>Menganalisis data keuangan Anda...</span>
+                              <span style={{ opacity: 0.6 }}>Analyzing your financial data...</span>
                             ) : (
-                              aiInsight || "Mulai catat transaksi untuk mendapatkan analisis keuangan pintar dari AI."
+                              aiInsight || "Start recording transactions to get smart financial analysis from AI."
                             )}
                           </p>
                         </div>
@@ -1462,7 +1462,7 @@ function App() {
                           gap: '8px'
                         }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                            AI Insight menggunakan Google Gemini. Data transaksi dienkripsi saat transit untuk proses analisis keuangan Anda.
+                            AI Insight uses Google Gemini. Transaction data is encrypted in transit for your financial analysis.
                           </span>
                           <button
                             onClick={() => handleToggleAiConsent(true)}
@@ -1480,7 +1480,7 @@ function App() {
                               transition: 'all 0.2s'
                             }}
                           >
-                            Aktifkan AI Insight
+                            Enable AI Insight
                           </button>
                         </div>
                       ) : (
@@ -1494,7 +1494,7 @@ function App() {
                           alignItems: 'center',
                           gap: '12px'
                         }}>
-                          <span style={{ flex: 1, lineHeight: '1.3' }}>AI Insight menggunakan Google Gemini. Data transaksi dienkripsi saat transit untuk analisis keuangan Anda.</span>
+                          <span style={{ flex: 1, lineHeight: '1.3' }}>AI Insight uses Google Gemini. Transaction data is encrypted in transit for your financial analysis.</span>
                           <button
                             onClick={() => handleToggleAiConsent(false)}
                             style={{
@@ -1507,7 +1507,7 @@ function App() {
                               fontWeight: 600
                             }}
                           >
-                            Nonaktifkan
+                            Disable
                           </button>
                         </div>
                       )}
@@ -1570,25 +1570,25 @@ function App() {
             {currentTab === 'add' && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px', height: '100%', width: '100%' }}>
 
-                {/* Segmented Toggle: Pengeluaran / Pemasukan */}
+                {/* Segmented Toggle: Expense / Income */}
                 <div className="toggle-container">
                   <button
                     className={`toggle-btn ${txType === 'EXPENSE' ? 'active' : ''}`}
                     onClick={() => setTxType('EXPENSE')}
                   >
-                    Pengeluaran
+                    Expense
                   </button>
                   <button
                     className={`toggle-btn ${txType === 'INCOME' ? 'active' : ''}`}
                     onClick={() => setTxType('INCOME')}
                   >
-                    Pemasukan
+                    Income
                   </button>
                 </div>
 
                 {/* Amount Display */}
                 <div className="nominal-section">
-                  <span className="nominal-label">JUMLAH NOMINAL</span>
+                  <span className="nominal-label">NOMINAL AMOUNT</span>
                   <div className="nominal-display">
                     <span className="nominal-currency">Rp</span>
                     <span className="nominal-value">{parseInt(txAmountStr, 10).toLocaleString('id-ID')}</span>
@@ -1598,7 +1598,7 @@ function App() {
                 {/* Category Chips (Only for Expense) */}
                 {txType === 'EXPENSE' && (
                   <div className="categories-section">
-                    <span className="cat-section-label">KATEGORI</span>
+                    <span className="cat-section-label">CATEGORY</span>
                     <div className="categories-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                       {categories.map((cat) => {
                         const isSelected = txCategory === cat.id;
@@ -1725,7 +1725,7 @@ function App() {
                     onClick={handleSaveTransaction}
                     disabled={parseInt(txAmountStr, 10) <= 0}
                   >
-                    Simpan Transaksi
+                    Save Transaction
                   </button>
                 </div>
 
@@ -1743,7 +1743,7 @@ function App() {
                   </button>
 
                   <div className="month-label-container">
-                    <span className="month-label-name">{INDO_MONTHS[selectedMonth]} {selectedYear}</span>
+                    <span className="month-label-name">{ENG_MONTHS[selectedMonth]} {selectedYear}</span>
                     <span className="month-label-sub">MONTHLY OVERVIEW</span>
                   </div>
 
@@ -1827,7 +1827,7 @@ function App() {
                             fontSize="12"
                             textAnchor="middle"
                           >
-                            Tidak ada data pengeluaran
+                            No spending data
                           </text>
                         </>
                       )}
@@ -1856,7 +1856,7 @@ function App() {
 
                       // Filter transactions of this category
                       const catTransactions = periodTransactions.filter(tx =>
-                        tx.type === 'EXPENSE' && (tx.categoryObj?.id === cat.id || (!tx.categoryObj && cat.name === 'Lainnya'))
+                        tx.type === 'EXPENSE' && (tx.categoryObj?.id === cat.id || (!tx.categoryObj && cat.name === 'Other'))
                       );
 
                       return (
@@ -1910,7 +1910,7 @@ function App() {
                                 </div>
                               ))}
                               {catTransactions.length === 0 && (
-                                <div className="expanded-item-empty">Tidak ada transaksi di kategori ini.</div>
+                                <div className="expanded-item-empty">No transactions in this category.</div>
                               )}
                             </div>
                           )}
@@ -1976,7 +1976,7 @@ function App() {
 
                   {Object.keys(groupedTransactionsByDay).length === 0 && (
                     <div style={{ padding: '24px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
-                      Tidak ada riwayat transaksi di bulan ini.
+                      No transaction history this month.
                     </div>
                   )}
                 </div>
@@ -2173,7 +2173,7 @@ function App() {
               onClick={() => setCurrentTab('laporan')}
             >
               <BarChart3 />
-              <span>Laporan</span>
+              <span>Reports</span>
             </button>
 
             <button
@@ -2212,7 +2212,7 @@ function App() {
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite'
               }}></div>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Memuat...</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Loading...</span>
             </div>
           )}
 
@@ -2223,7 +2223,7 @@ function App() {
                 <div className="edit-modal-header">
                   <div className="drag-handle"></div>
                   <div className="header-title-row">
-                    <span className="modal-title">Edit Transaksi</span>
+                    <span className="modal-title">Edit Transaction</span>
                     <button
                       className="delete-btn-icon"
                       onClick={() => {
@@ -2266,31 +2266,31 @@ function App() {
                       className={`type-btn income ${editType === 'INCOME' ? 'active' : ''}`}
                       onClick={() => setEditType('INCOME')}
                     >
-                      Pemasukan
+                      Income
                     </button>
                     <button
                       className={`type-btn expense ${editType === 'EXPENSE' ? 'active' : ''}`}
                       onClick={() => setEditType('EXPENSE')}
                     >
-                      Pengeluaran
+                      Expense
                     </button>
                   </div>
 
                   {/* Note Input */}
                   <div className="edit-input-group">
-                    <span className="input-label">Catatan</span>
+                    <span className="input-label">Note</span>
                     <input
                       type="text"
                       className="edit-text-input"
                       value={editNote}
                       onChange={(e) => setEditNote(e.target.value)}
-                      placeholder="Masukkan catatan..."
+                      placeholder="Enter note..."
                     />
                   </div>
 
                   {/* Date Input */}
                   <div className="edit-input-group">
-                    <span className="input-label">Tanggal</span>
+                    <span className="input-label">Date</span>
                     <input
                       type="date"
                       className="edit-text-input"
@@ -2302,13 +2302,13 @@ function App() {
                   {/* Category Select (Only if EXPENSE) */}
                   {editType === 'EXPENSE' && (
                     <div className="edit-input-group">
-                      <span className="input-label">Kategori</span>
+                      <span className="input-label">Category</span>
                       <select
                         className="edit-select-input"
                         value={editCategory}
                         onChange={(e) => setEditCategory(e.target.value)}
                       >
-                        <option value="">-- Pilih Kategori --</option>
+                        <option value="">-- Select Category --</option>
                         {categories.map(cat => (
                           <option key={cat.id} value={cat.id}>{cat.name}</option>
                         ))}
@@ -2318,8 +2318,8 @@ function App() {
 
                   {/* Action Buttons */}
                   <div className="modal-actions-row">
-                    <button className="cancel-btn" onClick={() => setEditingTransaction(null)}>Batal</button>
-                    <button className="save-btn" onClick={handleUpdateTransaction}>Simpan</button>
+                    <button className="cancel-btn" onClick={() => setEditingTransaction(null)}>Cancel</button>
+                    <button className="save-btn" onClick={handleUpdateTransaction}>Save</button>
                   </div>
                 </div>
               </div>
@@ -2333,14 +2333,14 @@ function App() {
                 <div className="edit-modal-header">
                   <div className="drag-handle"></div>
                   <div className="header-title-row">
-                    <span className="modal-title">Daftar Kategori</span>
-                    <button className="cancel-btn" onClick={() => setShowCategoryPreviewModal(false)} style={{ border: 'none', background: 'none', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>Tutup</button>
+                    <span className="modal-title">Category List</span>
+                    <button className="cancel-btn" onClick={() => setShowCategoryPreviewModal(false)} style={{ border: 'none', background: 'none', color: 'var(--primary)', fontWeight: 600, cursor: 'pointer' }}>Close</button>
                   </div>
                 </div>
 
                 <div className="edit-modal-body" style={{ overflowY: 'auto', maxHeight: 'calc(70vh - 120px)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: '1.4' }}>
-                    Daftar kategori transaksi aktif untuk akun Anda. Kategori default tidak dapat diubah.
+                    List of active transaction categories for your account. Default categories cannot be modified.
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -2370,7 +2370,7 @@ function App() {
                           <span style={{ fontSize: '14px', fontWeight: 600, color: '#ffffff' }}>{cat.name}</span>
                         </div>
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.05)', padding: '4px 8px', borderRadius: '6px' }}>
-                          Bawaan
+                          Default
                         </span>
                       </div>
                     ))}

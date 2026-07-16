@@ -30,10 +30,10 @@ async function main() {
 
   // Create default categories for demo user
   const categories = [
-    { name: 'Makanan', icon: '🍔', color: '#FF6B6B' },
-    { name: 'Primer', icon: '🏠', color: '#4ECDC4' },
-    { name: 'Hobi', icon: '🎮', color: '#45B7D1' },
-    { name: 'Lainnya', icon: '📦', color: '#96CEB4' },
+    { name: 'Food', icon: '🍔', color: '#FF6B6B' },
+    { name: 'Essentials', icon: '🏠', color: '#4ECDC4' },
+    { name: 'Hobby', icon: '🎮', color: '#45B7D1' },
+    { name: 'Other', icon: '📦', color: '#96CEB4' },
   ];
 
   for (const cat of categories) {
@@ -55,11 +55,11 @@ async function main() {
 
   // Create sample transactions
   const makananCat = await prisma.category.findFirst({
-    where: { name: 'Makanan', userId: user.id },
+    where: { name: 'Food', userId: user.id },
   });
 
   const primerCat = await prisma.category.findFirst({
-    where: { name: 'Primer', userId: user.id },
+    where: { name: 'Essentials', userId: user.id },
   });
 
   if (makananCat && primerCat) {
@@ -68,7 +68,7 @@ async function main() {
         {
           type: 'INCOME',
           amount: BigInt(12000000),
-          description: 'Gaji Bulanan',
+          description: 'Monthly Salary',
           date: new Date(2024, 9, 1),
           categoryId: primerCat.id,
           userId: user.id,
@@ -76,7 +76,7 @@ async function main() {
         {
           type: 'EXPENSE',
           amount: BigInt(50000),
-          description: 'Nasi Goreng Spesial',
+          description: 'Special Fried Rice',
           date: new Date(2024, 9, 14),
           categoryId: makananCat.id,
           userId: user.id,
@@ -84,15 +84,15 @@ async function main() {
         {
           type: 'EXPENSE',
           amount: BigInt(2500000),
-          description: 'Tagihan Listrik & Air',
+          description: 'Electricity & Water Bill',
           date: new Date(2024, 9, 10),
           categoryId: primerCat.id,
           userId: user.id,
         },
         {
           type: 'EXPENSE',
-          amount: BigInt(25000),
-          description: 'Kopi Susu',
+          amount: BigInt(25005),
+          description: 'Coffee with Milk',
           date: new Date(2024, 9, 14),
           categoryId: makananCat.id,
           userId: user.id,
@@ -100,7 +100,7 @@ async function main() {
         {
           type: 'EXPENSE',
           amount: BigInt(150000),
-          description: 'Makan Siang Tim',
+          description: 'Team Lunch',
           date: new Date(2024, 9, 13),
           categoryId: makananCat.id,
           userId: user.id,

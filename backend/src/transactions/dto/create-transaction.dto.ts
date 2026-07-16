@@ -14,12 +14,12 @@ export enum TransactionTypeDto {
 }
 
 export class CreateTransactionDto {
-  @IsEnum(TransactionTypeDto, { message: 'Tipe harus INCOME atau EXPENSE' })
+  @IsEnum(TransactionTypeDto, { message: 'Type must be INCOME or EXPENSE' })
   type: TransactionTypeDto;
 
   @Type(() => Number)
-  @IsInt({ message: 'Jumlah harus berupa angka bulat' })
-  @Min(1, { message: 'Jumlah minimal 1' })
+  @IsInt({ message: 'Amount must be an integer' })
+  @Min(1, { message: 'Amount must be at least 1' })
   amount: number;
 
   @IsOptional()
@@ -27,10 +27,10 @@ export class CreateTransactionDto {
   description?: string;
 
   @IsOptional()
-  @IsDateString({}, { message: 'Format tanggal tidak valid' })
+  @IsDateString({}, { message: 'Invalid date format' })
   date?: string;
 
   @IsOptional()
-  @IsString({ message: 'ID kategori harus berupa string' })
+  @IsString({ message: 'Category ID must be a string' })
   categoryId?: string;
 }
